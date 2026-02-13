@@ -2882,6 +2882,12 @@ Manual testing checklist:
 ```text
 Implement the complete dashboard module with selected-date behavior, week/month calendar UI (positioned at bottom), scheduled classes expansion, notes display, and quick action navigation with movable FAB.
 
+IMPORTANT IMPLEMENTATION UPDATE (2026-02-13):
+- Do not render a Compose top bar on Dashboard.
+- Use the Activity title bar (native ActionBar) as the only top bar.
+- Keep dashboard content below system bars and above navigation buttons.
+- FAB side change supports both persisted preference and direct swipe left/right.
+
 ## 1. Domain Model for Dashboard
 
 1.1. ScheduledClassItem (`domain/model/ScheduledClassItem.kt`)
@@ -3147,6 +3153,10 @@ class DashboardViewModel(
 ## 4. Dashboard Screen Implementation
 
 4.1. DashboardScreen (`ui/screen/dashboard/DashboardScreen.kt`)
+
+IMPORTANT:
+- Remove `Scaffold(topBar = ...)` if present in draft code.
+- The app uses native ActionBar only; Compose screen-level top bars are not allowed.
 
 @Composable
 fun DashboardScreen(
@@ -4065,6 +4075,13 @@ Manual testing checklist:
 ```text
 Implement the complete class creation flow with form inputs, auto-generation, validation, schedule editor, and repository persistence.
 
+IMPORTANT IMPLEMENTATION UPDATE (2026-02-13):
+- Use native ActionBar title/back only (no Compose top bar).
+- `Save` must appear as right-side ActionBar action (menu item), not as a Compose top-row button.
+- Dropdown/date/time pickers use text-box style picker fields (not outlined buttons).
+- Date range fields are side by side with calendar trailing icons.
+- Time picker is 12-hour with AM/PM selector.
+
 ## 1. CreateClassUiState and ScheduleSlotDraft
 
 1.1. ScheduleSlotDraft (`ui/screen/createclass/ScheduleSlotDraft.kt`)
@@ -4497,6 +4514,11 @@ class CreateClassViewModel(
 
 3.1. CreateClassScreen (`ui/screen/createclass/CreateClassScreen.kt`)
 
+IMPORTANT:
+- Do not use `Scaffold(topBar = AttenoteTopAppBar(...))` for this screen.
+- Configure ActionBar right action via host Activity (route-scoped callback) and trigger `viewModel.onSaveClicked()`.
+- Picker/dropdown triggers must be whole-field tappable, not icon-only.
+
 @Composable
 fun CreateClassScreen(
     onNavigateBack: () -> Unit,
@@ -4859,19 +4881,19 @@ Manual testing checklist:
 - [ ] Change subject again → className does NOT auto-update (manual override preserved)
 
 ### Date Pickers
-- [ ] Tap "Select Start Date" → Material3 DatePicker dialog opens
+- [ ] Tap Start Date field (textbox) → Material3 DatePicker dialog opens
 - [ ] Select date → dialog closes, date displays in button
-- [ ] Tap "Select End Date" → DatePicker opens
+- [ ] Tap End Date field (textbox) → DatePicker opens
 - [ ] Select date → dialog closes, date displays in button
 - [ ] Dates persist when scrolling form
 
 ### Schedule Slot Creation
 - [ ] Default slot: Monday 09:00 - 10:30
-- [ ] Tap day dropdown → can select different day
-- [ ] Tap start time → TimePicker opens, can select time
-- [ ] Tap end time → TimePicker opens, can select time
+- [ ] Tap day field dropdown → can select different day
+- [ ] Tap start time field → TimePicker opens, can select time (12h with AM/PM)
+- [ ] Tap end time field → TimePicker opens, can select time (12h with AM/PM)
 - [ ] Tap "Add Slot" → slot appears in list below
-- [ ] Slot shows: "Monday | 09:00 - 10:30"
+- [ ] Slot shows 12-hour time format with AM/PM
 - [ ] Slot draft resets to Monday 09:00 - 10:30
 
 ### Schedule Validation
@@ -4967,6 +4989,27 @@ Manual testing checklist:
 
 ### Git Commit Message (Step 08)
 `feat(step-08): implement create class ui, validation, and schedule persistence`
+
+### Step 07-08 Amendment (Source of Truth)
+`This amendment supersedes conflicting older lines in Prompt 07/08.`
+
+1. Top Bar and Save Action
+- Use only native Activity ActionBar as global top bar.
+- No Compose `TopAppBar` on screens.
+- Route-specific right-side actions (for example, `Save` on CreateClass) are provided through host-level ActionBar menu wiring.
+
+2. Dashboard (Step 07)
+- Keep dashboard content inset-safe for status/navigation bars.
+- FAB should remain tappable above system navigation area.
+- FAB side can be changed by persisted preference and swipe gesture.
+
+3. CreateClass (Step 08)
+- Save is in ActionBar right action.
+- Semester/day/date/time inputs use text-box style picker fields.
+- Date range fields are side by side with calendar icons.
+- Time picker is 12-hour (AM/PM).
+- Picker/dropdown/date/time controls must open from whole-field tap, not just icon tap.
+- Class name manual override is preserved after user edits.
 
 ## Prompt 09 - Manage Class List + Edit Class + Roster Operations
 ```text

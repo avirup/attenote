@@ -248,6 +248,7 @@ class CreateClassViewModel(
     }
 
     fun onSaveClicked() {
+        if (_uiState.value.isLoading) return
         val state = _uiState.value
 
         val errors = mutableMapOf<String, String?>()

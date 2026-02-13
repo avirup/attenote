@@ -15,6 +15,7 @@ fun AttenoteTimePickerDialog(
         onDismissRequest = onDismiss,
         initialHour = initialTime.hour,
         initialMinute = initialTime.minute,
+        is24Hour = false,
         onTimeSelected = { hour, minute ->
             onTimeSelected(LocalTime.of(hour, minute))
         }

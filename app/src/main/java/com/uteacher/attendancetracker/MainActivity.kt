@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.os.Bundle
 import android.util.Log
 import android.util.TypedValue
+import android.view.Menu
 import android.view.MenuItem
 import androidx.biometric.BiometricPrompt
 import androidx.activity.compose.setContent
@@ -33,6 +34,7 @@ import androidx.navigation.compose.DialogNavigator
 import com.uteacher.attendancetracker.data.repository.SettingsPreferencesRepository
 import com.uteacher.attendancetracker.ui.navigation.AppNavHost
 import com.uteacher.attendancetracker.ui.navigation.AppRoute
+import com.uteacher.attendancetracker.ui.navigation.ActionBarPrimaryAction
 import com.uteacher.attendancetracker.ui.theme.AttenoteTheme
 import com.uteacher.attendancetracker.util.BiometricHelper
 import kotlinx.coroutines.flow.first
@@ -52,6 +54,7 @@ class MainActivity : FragmentActivity() {
     private var navigateUpHandler: (() -> Boolean)? = null
     private var lastActionBarTitle: String? = null
     private var lastActionBarBackState: Boolean? = null
+    private var actionBarPrimaryAction: ActionBarPrimaryAction? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,6 +129,9 @@ class MainActivity : FragmentActivity() {
                             startDestination = startDestination!!,
                             onActionBarChanged = { title, showBack ->
                                 applyActionBarState(title = title, showBack = showBack)
+                            },
+                            onActionBarPrimaryActionChanged = { action ->
+                                applyActionBarPrimaryAction(action)
                             }
                         )
                     }
@@ -149,7 +155,27 @@ class MainActivity : FragmentActivity() {
             val consumed = navigateUpHandler?.invoke() ?: false
             return consumed || super.onOptionsItemSelected(item)
         }
+        if (item.itemId == MENU_ITEM_PRIMARY_ACTION) {
+            actionBarPrimaryAction?.onClick?.invoke()
+            return true
+        }
         return super.onOptionsItemSelected(item)
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        return true
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        menu.clear()
+        val action = actionBarPrimaryAction
+        if (action != null) {
+            menu.add(Menu.NONE, MENU_ITEM_PRIMARY_ACTION, Menu.NONE, action.title).apply {
+                setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+                isEnabled = action.enabled
+            }
+        }
+        return super.onPrepareOptionsMenu(menu)
     }
 
     private fun showBiometricPrompt(
@@ -203,8 +229,22 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    private fun applyActionBarPrimaryAction(action: ActionBarPrimaryAction?) {
+        val previous = actionBarPrimaryAction
+        if (
+            previous?.title == action?.title &&
+            previous?.enabled == action?.enabled &&
+            previous?.onClick === action?.onClick
+        ) {
+            return
+        }
+        actionBarPrimaryAction = action
+        invalidateOptionsMenu()
+    }
+
     private companion object {
         private const val STARTUP_TAG = "StartupGate"
+        private const val MENU_ITEM_PRIMARY_ACTION = 1001
     }
 
     private fun resolveTopChromeInsetPx(): Int {

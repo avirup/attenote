@@ -30,14 +30,19 @@ import com.uteacher.attendancetracker.ui.screen.splash.SplashScreen
 fun AppNavHost(
     navController: NavHostController,
     startDestination: AppRoute,
-    onActionBarChanged: (title: String, showBack: Boolean) -> Unit
+    onActionBarChanged: (title: String, showBack: Boolean) -> Unit,
+    onActionBarPrimaryActionChanged: (ActionBarPrimaryAction?) -> Unit
 ) {
     NavHost(
         navController = navController,
         startDestination = startDestination
     ) {
         composable<AppRoute.Splash> {
-            ConfigureActionBar(route = AppRoute.Splash, onActionBarChanged = onActionBarChanged)
+            ConfigureActionBar(
+                route = AppRoute.Splash,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
             SplashScreen(
                 onNavigateToSetup = {
                     navController.navigate(AppRoute.Setup) {
@@ -50,7 +55,11 @@ fun AppNavHost(
         }
 
         composable<AppRoute.Setup> {
-            ConfigureActionBar(route = AppRoute.Setup, onActionBarChanged = onActionBarChanged)
+            ConfigureActionBar(
+                route = AppRoute.Setup,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
             SetupScreen(
                 onNavigateToDashboard = {
                     navController.navigate(AppRoute.Dashboard) {
@@ -63,7 +72,11 @@ fun AppNavHost(
         }
 
         composable<AppRoute.AuthGate> {
-            ConfigureActionBar(route = AppRoute.AuthGate, onActionBarChanged = onActionBarChanged)
+            ConfigureActionBar(
+                route = AppRoute.AuthGate,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
             AuthGateScreen(
                 onNavigateToDashboard = {
                     navController.navigate(AppRoute.Dashboard) {
@@ -76,7 +89,11 @@ fun AppNavHost(
         }
 
         composable<AppRoute.Dashboard> {
-            ConfigureActionBar(route = AppRoute.Dashboard, onActionBarChanged = onActionBarChanged)
+            ConfigureActionBar(
+                route = AppRoute.Dashboard,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
             DashboardScreen(
                 onNavigateToCreateClass = {
                     navController.navigate(AppRoute.CreateClass)
@@ -100,23 +117,33 @@ fun AppNavHost(
         }
 
         composable<AppRoute.CreateClass> {
-            ConfigureActionBar(route = AppRoute.CreateClass, onActionBarChanged = onActionBarChanged)
+            ConfigureActionBar(
+                route = AppRoute.CreateClass,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
             CreateClassScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onSetActionBarPrimaryAction = onActionBarPrimaryActionChanged
             )
         }
 
         composable<AppRoute.ManageClassList> {
             ConfigureActionBar(
                 route = AppRoute.ManageClassList,
-                onActionBarChanged = onActionBarChanged
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
             )
             PlaceholderScaffold(title = "Manage Classes", readinessStep = "09")
         }
 
         composable<AppRoute.EditClass> { backStackEntry ->
             val route = backStackEntry.toRoute<AppRoute.EditClass>()
-            ConfigureActionBar(route = route, onActionBarChanged = onActionBarChanged)
+            ConfigureActionBar(
+                route = route,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
             PlaceholderScaffold(
                 title = "Edit Class",
                 readinessStep = "09",
@@ -125,13 +152,21 @@ fun AppNavHost(
         }
 
         composable<AppRoute.ManageStudents> {
-            ConfigureActionBar(route = AppRoute.ManageStudents, onActionBarChanged = onActionBarChanged)
+            ConfigureActionBar(
+                route = AppRoute.ManageStudents,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
             PlaceholderScaffold(title = "Manage Students", readinessStep = "10")
         }
 
         composable<AppRoute.TakeAttendance> { backStackEntry ->
             val route = backStackEntry.toRoute<AppRoute.TakeAttendance>()
-            ConfigureActionBar(route = route, onActionBarChanged = onActionBarChanged)
+            ConfigureActionBar(
+                route = route,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
             PlaceholderScaffold(
                 title = "Take Attendance",
                 readinessStep = "11",
@@ -145,7 +180,11 @@ fun AppNavHost(
 
         composable<AppRoute.AddNote> { backStackEntry ->
             val route = backStackEntry.toRoute<AppRoute.AddNote>()
-            ConfigureActionBar(route = route, onActionBarChanged = onActionBarChanged)
+            ConfigureActionBar(
+                route = route,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
             PlaceholderScaffold(
                 title = "Add Note",
                 readinessStep = "12",
@@ -157,7 +196,11 @@ fun AppNavHost(
         }
 
         composable<AppRoute.Settings> {
-            ConfigureActionBar(route = AppRoute.Settings, onActionBarChanged = onActionBarChanged)
+            ConfigureActionBar(
+                route = AppRoute.Settings,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
             PlaceholderScaffold(title = "Settings", readinessStep = "13")
         }
     }
@@ -166,11 +209,13 @@ fun AppNavHost(
 @Composable
 private fun ConfigureActionBar(
     route: AppRoute,
-    onActionBarChanged: (title: String, showBack: Boolean) -> Unit
+    onActionBarChanged: (title: String, showBack: Boolean) -> Unit,
+    onActionBarPrimaryActionChanged: (ActionBarPrimaryAction?) -> Unit
 ) {
     val policy = route.actionBarPolicy()
     SideEffect {
         onActionBarChanged(policy.title, policy.showBack)
+        onActionBarPrimaryActionChanged(null)
     }
 }
 

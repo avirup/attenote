@@ -19,7 +19,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-private val TimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val TimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
 
 @Composable
 fun ScheduleSlotCard(
