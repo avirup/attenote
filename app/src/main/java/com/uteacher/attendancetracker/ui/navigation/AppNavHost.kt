@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.uteacher.attendancetracker.ui.screen.auth.AuthGateScreen
+import com.uteacher.attendancetracker.ui.screen.createclass.CreateClassScreen
 import com.uteacher.attendancetracker.ui.screen.dashboard.DashboardScreen
 import com.uteacher.attendancetracker.ui.screen.setup.SetupScreen
 import com.uteacher.attendancetracker.ui.screen.splash.SplashScreen
@@ -100,7 +101,9 @@ fun AppNavHost(
 
         composable<AppRoute.CreateClass> {
             ConfigureActionBar(route = AppRoute.CreateClass, onActionBarChanged = onActionBarChanged)
-            PlaceholderScaffold(title = "Create Class", readinessStep = "09")
+            CreateClassScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
 
         composable<AppRoute.ManageClassList> {
