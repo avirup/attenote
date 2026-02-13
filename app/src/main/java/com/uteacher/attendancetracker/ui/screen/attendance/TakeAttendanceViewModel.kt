@@ -37,17 +37,32 @@ class TakeAttendanceViewModel(
     }
 
     fun onErrorShown() {
-        _uiState.update { it.copy(error = null) }
+        _uiState.update { it.copy(error = null, shouldNavigateBack = false) }
     }
 
     private fun loadAttendanceContext() {
         viewModelScope.launch {
             try {
+                if (classId <= 0 || scheduleId <= 0) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = "Invalid attendance route parameters",
+                            shouldNavigateBack = true
+                        )
+                    }
+                    return@launch
+                }
+
                 val parsedDate = try {
                     LocalDate.parse(dateString)
                 } catch (e: Exception) {
                     _uiState.update {
-                        it.copy(isLoading = false, error = "Invalid date")
+                        it.copy(
+                            isLoading = false,
+                            error = "Invalid date format in route",
+                            shouldNavigateBack = true
+                        )
                     }
                     return@launch
                 }
@@ -68,7 +83,36 @@ class TakeAttendanceViewModel(
                             isLoading = false,
                             date = parsedDate,
                             classItem = classItem,
-                            error = "Schedule not found"
+                            error = "Schedule not found",
+                            shouldNavigateBack = true
+                        )
+                    }
+                    return@launch
+                }
+
+                if (parsedDate < classItem.startDate || parsedDate > classItem.endDate) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            date = parsedDate,
+                            classItem = classItem,
+                            schedule = schedule,
+                            error = "This class is not active on the selected date",
+                            shouldNavigateBack = true
+                        )
+                    }
+                    return@launch
+                }
+
+                if (parsedDate.dayOfWeek != schedule.dayOfWeek) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            date = parsedDate,
+                            classItem = classItem,
+                            schedule = schedule,
+                            error = "This class is not scheduled for the selected date",
+                            shouldNavigateBack = true
                         )
                     }
                     return@launch
@@ -118,7 +162,8 @@ class TakeAttendanceViewModel(
                         attendanceRecords = attendanceRecords,
                         lessonNotes = existingSession?.lessonNotes.orEmpty(),
                         isLoading = false,
-                        error = null
+                        error = null,
+                        shouldNavigateBack = false
                     )
                 }
             } catch (e: Exception) {

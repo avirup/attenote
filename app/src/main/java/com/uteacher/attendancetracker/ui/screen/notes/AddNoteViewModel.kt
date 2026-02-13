@@ -41,14 +41,34 @@ class AddNoteViewModel(
     }
 
     fun onErrorShown() {
-        _uiState.update { it.copy(error = null) }
+        _uiState.update { it.copy(error = null, shouldNavigateBack = false) }
     }
 
     private fun loadNote() {
         viewModelScope.launch {
             try {
+                if (noteId < -1L) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = "Invalid note route parameters",
+                            shouldNavigateBack = true
+                        )
+                    }
+                    return@launch
+                }
+
                 val initialDate = runCatching { LocalDate.parse(dateString) }
-                    .getOrDefault(LocalDate.now())
+                    .getOrElse {
+                        _uiState.update { state ->
+                            state.copy(
+                                isLoading = false,
+                                error = "Invalid date format in route",
+                                shouldNavigateBack = true
+                            )
+                        }
+                        return@launch
+                    }
 
                 if (noteId > 0) {
                     val noteWithMedia = noteRepository.getNoteWithMedia(noteId)
@@ -58,7 +78,8 @@ class AddNoteViewModel(
                                 initialDate = initialDate,
                                 date = initialDate,
                                 isLoading = false,
-                                error = "Note not found"
+                                error = "Note not found",
+                                shouldNavigateBack = true
                             )
                         }
                         return@launch
@@ -70,7 +91,7 @@ class AddNoteViewModel(
                     resetHistory(note.content)
 
                     baselineTitle = note.title
-                    baselineHtml = note.content
+                    baselineHtml = note.content.normalizeHtml()
                     baselineDate = note.date
                     baselineCreatedAt = note.createdAt
 
@@ -85,12 +106,13 @@ class AddNoteViewModel(
                             canUndo = false,
                             canRedo = false,
                             hasUnsavedChanges = false,
-                            error = null
+                            error = null,
+                            shouldNavigateBack = false
                         )
                     }
                 } else {
                     baselineTitle = ""
-                    baselineHtml = ""
+                    baselineHtml = "".normalizeHtml()
                     baselineDate = initialDate
                     baselineCreatedAt = LocalDate.now()
                     resetHistory(_uiState.value.richTextState.toHtml())
@@ -103,7 +125,8 @@ class AddNoteViewModel(
                             canUndo = false,
                             canRedo = false,
                             hasUnsavedChanges = false,
-                            error = null
+                            error = null,
+                            shouldNavigateBack = false
                         )
                     }
                 }
@@ -326,7 +349,7 @@ class AddNoteViewModel(
                 when (result) {
                     is RepositoryResult.Success -> {
                         baselineTitle = state.title.trim()
-                        baselineHtml = html
+                        baselineHtml = html.normalizeHtml()
                         baselineDate = state.date
                         if (noteId <= 0) {
                             baselineCreatedAt = LocalDate.now()
@@ -370,7 +393,7 @@ class AddNoteViewModel(
         pendingMedia: List<PendingMedia>
     ): Boolean {
         return title.trim() != baselineTitle.trim() ||
-            html != baselineHtml ||
+            html.normalizeHtml() != baselineHtml.normalizeHtml() ||
             date != baselineDate ||
             pendingMedia.isNotEmpty()
     }
@@ -381,6 +404,14 @@ class AddNoteViewModel(
             .replace("&nbsp;", " ")
             .trim()
         return plain.isNotBlank()
+    }
+
+    private fun String.normalizeHtml(): String {
+        return this
+            .replace("<p></p>", "")
+            .replace("<p><br></p>", "")
+            .replace("&nbsp;", " ")
+            .trim()
     }
 
     private fun resetHistory(initialHtml: String) {

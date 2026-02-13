@@ -224,7 +224,7 @@ fun DashboardScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .zIndex(2f)
-                    .background(Color.Black.copy(alpha = 0.3f))
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.3f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,

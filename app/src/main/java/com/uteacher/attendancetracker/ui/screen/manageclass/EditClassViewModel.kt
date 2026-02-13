@@ -28,7 +28,16 @@ class EditClassViewModel(
     val uiState: StateFlow<EditClassUiState> = _uiState.asStateFlow()
 
     init {
-        loadClassData()
+        if (classId <= 0L) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    saveError = "Invalid class route parameters"
+                )
+            }
+        } else {
+            loadClassData()
+        }
     }
 
     private fun loadClassData() {

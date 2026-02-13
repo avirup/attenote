@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,7 +40,6 @@ import com.uteacher.attendancetracker.ui.components.AttenoteDatePickerDialog
 import com.uteacher.attendancetracker.ui.navigation.ActionBarPrimaryAction
 import com.uteacher.attendancetracker.ui.screen.notes.components.MediaThumbnail
 import com.uteacher.attendancetracker.ui.screen.notes.components.RichTextToolbar
-import com.uteacher.attendancetracker.ui.theme.component.AttenoteButton
 import com.uteacher.attendancetracker.ui.theme.component.AttenoteSectionCard
 import com.uteacher.attendancetracker.ui.theme.component.AttenoteTextField
 import kotlinx.coroutines.delay
@@ -69,6 +69,12 @@ fun AddNoteScreen(
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
+            onNavigateBack()
+        }
+    }
+    LaunchedEffect(uiState.shouldNavigateBack) {
+        if (uiState.shouldNavigateBack) {
+            delay(700)
             onNavigateBack()
         }
     }
@@ -154,7 +160,7 @@ fun AddNoteScreen(
                     maxLength = Int.MAX_VALUE,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp)
+                        .defaultMinSize(minHeight = 300.dp)
                 )
                 RichTextToolbar(
                     state = uiState.richTextState,
@@ -233,12 +239,6 @@ fun AddNoteScreen(
                 color = MaterialTheme.colorScheme.primary
             )
         }
-
-        AttenoteButton(
-            text = if (uiState.isSaving) "Saving..." else "Save",
-            onClick = viewModel::onSaveClicked,
-            enabled = !uiState.isSaving
-        )
 
         Spacer(modifier = Modifier.height(8.dp))
     }

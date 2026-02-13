@@ -28,13 +28,27 @@ class OrphanMediaCleanupWorker(
                 }
                 .toSet()
 
-            val orphanedFiles = noteMediaDir.listFiles()
-                .orEmpty()
+            val orphanedFiles = noteMediaDir.walkTopDown()
                 .filter { it.isFile }
                 .filterNot { it.absolutePath in referencedPaths }
+                .toList()
 
             orphanedFiles.forEach { file ->
                 runCatching {
+                    // Re-check references to avoid deleting media added during this worker run.
+                    val latestReferences = noteMediaDao.getAllFilePaths().map { path ->
+                        val refFile = File(path)
+                        if (refFile.isAbsolute) {
+                            refFile.absolutePath
+                        } else {
+                            File(noteMediaDir, path).absolutePath
+                        }
+                    }.toSet()
+                    if (file.absolutePath in latestReferences) {
+                        Log.d(TAG, "Skipping newly referenced file: ${file.name}")
+                        return@runCatching
+                    }
+
                     if (file.delete()) {
                         Log.d(TAG, "Deleted orphaned file: ${file.name}")
                     } else {

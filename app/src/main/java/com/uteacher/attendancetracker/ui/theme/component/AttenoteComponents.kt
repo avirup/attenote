@@ -35,6 +35,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +52,12 @@ fun AttenoteTopAppBar(
     TopAppBar(
         title = { Text(text = title, style = MaterialTheme.typography.titleMedium) },
         modifier = modifier,
+        colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        ),
         navigationIcon = {
             if (showBackButton && onBackClick != null) {
                 IconButton(
@@ -58,7 +66,10 @@ fun AttenoteTopAppBar(
                         .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                         .semantics { contentDescription = backContentDescription }
                 ) {
-                    Text(text = "<")
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = backContentDescription
+                    )
                 }
             }
         },
@@ -115,6 +126,8 @@ fun AttenoteTextField(
     enabled: Boolean = true,
     errorMessage: String? = null,
     singleLine: Boolean = false,
+    minLines: Int = 1,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     contentDescription: String = label
@@ -130,6 +143,8 @@ fun AttenoteTextField(
             label = { Text(text = label, style = MaterialTheme.typography.labelMedium) },
             enabled = enabled,
             singleLine = singleLine,
+            minLines = minLines,
+            maxLines = maxLines,
             isError = !errorMessage.isNullOrBlank(),
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions
@@ -152,13 +167,13 @@ fun AttenoteSectionCard(
 ) {
     ElevatedCard(modifier = modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (!title.isNullOrBlank()) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleSmall
                 )
             }
             Box {

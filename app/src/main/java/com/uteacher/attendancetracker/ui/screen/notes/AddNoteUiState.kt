@@ -21,7 +21,8 @@ data class AddNoteUiState(
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
     val error: String? = null,
-    val hasUnsavedChanges: Boolean = false
+    val hasUnsavedChanges: Boolean = false,
+    val shouldNavigateBack: Boolean = false
 )
 
 private fun createRichTextState(): RichTextState {

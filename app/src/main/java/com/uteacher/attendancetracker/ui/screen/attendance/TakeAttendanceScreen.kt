@@ -9,10 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,8 +26,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.uteacher.attendancetracker.ui.navigation.ActionBarPrimaryAction
 import com.uteacher.attendancetracker.ui.screen.attendance.components.AttendanceRecordCard
-import com.uteacher.attendancetracker.ui.theme.component.AttenoteButton
+import com.uteacher.attendancetracker.ui.theme.component.AttenoteSecondaryButton
 import com.uteacher.attendancetracker.ui.theme.component.AttenoteSectionCard
+import com.uteacher.attendancetracker.ui.theme.component.AttenoteTextField
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -55,9 +54,19 @@ fun TakeAttendanceScreen(
             onNavigateBack()
         }
     }
+    LaunchedEffect(uiState.shouldNavigateBack) {
+        if (uiState.shouldNavigateBack) {
+            delay(700)
+            onNavigateBack()
+        }
+    }
 
     LaunchedEffect(uiState.error, uiState.attendanceRecords.isEmpty()) {
-        if (!uiState.error.isNullOrBlank() && uiState.attendanceRecords.isNotEmpty()) {
+        if (
+            !uiState.error.isNullOrBlank() &&
+            uiState.attendanceRecords.isNotEmpty() &&
+            !uiState.shouldNavigateBack
+        ) {
             delay(2500)
             viewModel.onErrorShown()
         }
@@ -96,12 +105,11 @@ fun TakeAttendanceScreen(
                         color = MaterialTheme.colorScheme.error,
                         textAlign = TextAlign.Center
                     )
-                    Button(
+                    AttenoteSecondaryButton(
+                        text = "Go Back",
                         onClick = onNavigateBack,
                         modifier = Modifier.padding(top = 16.dp)
-                    ) {
-                        Text("Go Back")
-                    }
+                    )
                 }
             }
 
@@ -172,10 +180,10 @@ fun TakeAttendanceScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                OutlinedTextField(
+                                AttenoteTextField(
                                     value = uiState.lessonNotes,
                                     onValueChange = viewModel::onLessonNotesChanged,
-                                    label = { Text("Lesson notes") },
+                                    label = "Lesson notes",
                                     modifier = Modifier.fillMaxWidth(),
                                     enabled = !uiState.isSaving,
                                     minLines = 4,
@@ -190,13 +198,6 @@ fun TakeAttendanceScreen(
                         }
                     }
 
-                    item {
-                        AttenoteButton(
-                            text = if (uiState.isSaving) "Saving..." else "Save Attendance",
-                            onClick = viewModel::onSaveClicked,
-                            enabled = !uiState.isSaving
-                        )
-                    }
                 }
             }
         }

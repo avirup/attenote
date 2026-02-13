@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -35,6 +36,7 @@ import com.uteacher.attendancetracker.ui.screen.notes.AddNoteScreen
 import com.uteacher.attendancetracker.ui.screen.settings.SettingsScreen
 import com.uteacher.attendancetracker.ui.screen.setup.SetupScreen
 import com.uteacher.attendancetracker.ui.screen.splash.SplashScreen
+import com.uteacher.attendancetracker.ui.theme.component.AttenoteSecondaryButton
 
 @Composable
 fun AppNavHost(
@@ -162,7 +164,14 @@ fun AppNavHost(
         }
 
         composable<AppRoute.EditClass> { backStackEntry ->
-            val route = backStackEntry.toRoute<AppRoute.EditClass>()
+            val route = backStackEntry.toTypedRouteOrNull<AppRoute.EditClass>()
+            if (route == null) {
+                InvalidRoutePlaceholder(
+                    message = "Invalid class route parameters.",
+                    onNavigateBack = { navController.popBackStack() }
+                )
+                return@composable
+            }
             ConfigureActionBar(
                 route = route,
                 onActionBarChanged = onActionBarChanged,
@@ -181,7 +190,14 @@ fun AppNavHost(
         }
 
         composable<AppRoute.TakeAttendance> { backStackEntry ->
-            val route = backStackEntry.toRoute<AppRoute.TakeAttendance>()
+            val route = backStackEntry.toTypedRouteOrNull<AppRoute.TakeAttendance>()
+            if (route == null) {
+                InvalidRoutePlaceholder(
+                    message = "Invalid attendance route parameters.",
+                    onNavigateBack = { navController.popBackStack() }
+                )
+                return@composable
+            }
             ConfigureActionBar(
                 route = route,
                 onActionBarChanged = onActionBarChanged,
@@ -197,7 +213,14 @@ fun AppNavHost(
         }
 
         composable<AppRoute.AddNote> { backStackEntry ->
-            val route = backStackEntry.toRoute<AppRoute.AddNote>()
+            val route = backStackEntry.toTypedRouteOrNull<AppRoute.AddNote>()
+            if (route == null) {
+                InvalidRoutePlaceholder(
+                    message = "Invalid note route parameters.",
+                    onNavigateBack = { navController.popBackStack() }
+                )
+                return@composable
+            }
             ConfigureActionBar(
                 route = route,
                 onActionBarChanged = onActionBarChanged,
@@ -263,6 +286,33 @@ private fun ConfigureActionBar(
     SideEffect {
         onActionBarChanged(policy.title, policy.showBack)
         onActionBarPrimaryActionChanged(null)
+    }
+}
+
+private inline fun <reified T : AppRoute> NavBackStackEntry.toTypedRouteOrNull(): T? {
+    return runCatching { toRoute<T>() }.getOrNull()
+}
+
+@Composable
+private fun InvalidRoutePlaceholder(
+    message: String,
+    onNavigateBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error
+        )
+        AttenoteSecondaryButton(
+            text = "Go Back",
+            onClick = onNavigateBack
+        )
     }
 }
 

@@ -59,6 +59,9 @@ sealed interface AppRoute {
             require(DatePattern.matches(date)) {
                 "date must be yyyy-MM-dd format, got: $date"
             }
+            require(noteId >= -1L) {
+                "noteId must be >= -1, got: $noteId"
+            }
         }
     }
 

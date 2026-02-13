@@ -15,5 +15,6 @@ data class TakeAttendanceUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val shouldNavigateBack: Boolean = false
 )
