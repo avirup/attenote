@@ -191,7 +191,17 @@ class DashboardViewModel(
     }
 
     fun onToggleCalendar() {
-        _uiState.update { it.copy(calendarExpanded = !it.calendarExpanded) }
+        setCalendarExpanded(!_uiState.value.calendarExpanded)
+    }
+
+    fun setCalendarExpanded(expanded: Boolean) {
+        _uiState.update { current ->
+            if (current.calendarExpanded == expanded) {
+                current
+            } else {
+                current.copy(calendarExpanded = expanded)
+            }
+        }
     }
 
     fun onToggleFabMenu() {

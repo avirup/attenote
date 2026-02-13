@@ -8,9 +8,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -32,6 +32,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import com.uteacher.attendancetracker.domain.model.FabPosition
 import com.uteacher.attendancetracker.ui.screen.dashboard.components.CalendarSection
 import com.uteacher.attendancetracker.ui.screen.dashboard.components.HamburgerFabMenu
@@ -43,8 +46,6 @@ import java.time.format.TextStyle
 import java.util.Locale
 import org.koin.androidx.compose.koinViewModel
 import kotlin.math.roundToInt
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 
 @Composable
 fun DashboardScreen(
@@ -58,9 +59,16 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
-    val swipeThresholdPx = with(LocalDensity.current) { 24.dp.toPx() }
-    var accumulatedDrag by remember { mutableFloatStateOf(0f) }
-    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
+    val fabSwipeThresholdPx = with(LocalDensity.current) { 24.dp.toPx() }
+    val calendarSwipeThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
+    val contentBottomPadding = if (uiState.calendarExpanded) 408.dp else 228.dp
+    val snackbarBottomPadding = if (uiState.calendarExpanded) 360.dp else 196.dp
+
+    var fabAccumulatedDrag by remember { mutableFloatStateOf(0f) }
+    var fabDragOffsetPx by remember { mutableFloatStateOf(0f) }
+
+    var calendarAccumulatedDrag by remember { mutableFloatStateOf(0f) }
+    var calendarDragOffsetPx by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress) {
@@ -72,7 +80,12 @@ fun DashboardScreen(
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 16.dp,
+                end = 16.dp,
+                bottom = contentBottomPadding
+            ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
@@ -160,28 +173,57 @@ fun DashboardScreen(
                 }
             }
 
-            item {
-                CalendarSection(
-                    modifier = Modifier.fillMaxWidth(),
-                    expanded = uiState.calendarExpanded,
-                    selectedDate = uiState.selectedDate,
-                    currentMonth = uiState.currentMonth,
-                    datesWithContent = uiState.datesWithClasses + uiState.datesWithNotes,
-                    weekRange = viewModel.getWeekRange(uiState.selectedDate),
-                    onDateSelected = viewModel::onDateSelected,
-                    onPreviousWeek = viewModel::onPreviousWeekClicked,
-                    onNextWeek = viewModel::onNextWeekClicked,
-                    onPreviousMonth = viewModel::onPreviousMonthClicked,
-                    onNextMonth = viewModel::onNextMonthClicked,
-                    onToggleExpanded = viewModel::onToggleCalendar
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                .offset { IntOffset(0, calendarDragOffsetPx.roundToInt()) }
+                .draggable(
+                    orientation = Orientation.Vertical,
+                    state = rememberDraggableState { delta ->
+                        calendarAccumulatedDrag += delta
+                        calendarDragOffsetPx = (calendarDragOffsetPx + (delta * 0.35f))
+                            .coerceIn(-32f, 32f)
+                    },
+                    onDragStopped = {
+                        when {
+                            calendarAccumulatedDrag <= -calendarSwipeThresholdPx -> {
+                                viewModel.setCalendarExpanded(true)
+                            }
+
+                            calendarAccumulatedDrag >= calendarSwipeThresholdPx -> {
+                                viewModel.setCalendarExpanded(false)
+                            }
+                        }
+                        calendarAccumulatedDrag = 0f
+                        calendarDragOffsetPx = 0f
+                    }
                 )
-            }
+                .zIndex(1f)
+        ) {
+            CalendarSection(
+                modifier = Modifier.fillMaxWidth(),
+                expanded = uiState.calendarExpanded,
+                selectedDate = uiState.selectedDate,
+                currentMonth = uiState.currentMonth,
+                datesWithContent = uiState.datesWithClasses + uiState.datesWithNotes,
+                weekRange = viewModel.getWeekRange(uiState.selectedDate),
+                onDateSelected = viewModel::onDateSelected,
+                onPreviousWeek = viewModel::onPreviousWeekClicked,
+                onNextWeek = viewModel::onNextWeekClicked,
+                onPreviousMonth = viewModel::onPreviousMonthClicked,
+                onNextMonth = viewModel::onNextMonthClicked,
+                onToggleExpanded = viewModel::onToggleCalendar
+            )
         }
 
         if (uiState.fabMenuExpanded) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .zIndex(2f)
                     .background(Color.Black.copy(alpha = 0.3f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -199,23 +241,24 @@ fun DashboardScreen(
                         FabPosition.RIGHT -> Alignment.BottomEnd
                     }
                 )
-                .padding(16.dp)
-                .offset { IntOffset(dragOffsetPx.roundToInt(), 0) }
+                .padding(start = 16.dp, end = 16.dp, bottom = 28.dp)
+                .offset { IntOffset(fabDragOffsetPx.roundToInt(), 0) }
                 .draggable(
                     orientation = Orientation.Horizontal,
                     state = rememberDraggableState { delta ->
-                        accumulatedDrag += delta
-                        dragOffsetPx = (dragOffsetPx + delta).coerceIn(-72f, 72f)
+                        fabAccumulatedDrag += delta
+                        fabDragOffsetPx = (fabDragOffsetPx + delta).coerceIn(-72f, 72f)
                     },
                     onDragStopped = {
                         when {
-                            accumulatedDrag <= -swipeThresholdPx -> viewModel.onFabSwipedLeft()
-                            accumulatedDrag >= swipeThresholdPx -> viewModel.onFabSwipedRight()
+                            fabAccumulatedDrag <= -fabSwipeThresholdPx -> viewModel.onFabSwipedLeft()
+                            fabAccumulatedDrag >= fabSwipeThresholdPx -> viewModel.onFabSwipedRight()
                         }
-                        accumulatedDrag = 0f
-                        dragOffsetPx = 0f
+                        fabAccumulatedDrag = 0f
+                        fabDragOffsetPx = 0f
                     }
                 )
+                .zIndex(3f)
         ) {
             HamburgerFabMenu(
                 expanded = uiState.fabMenuExpanded,
@@ -252,7 +295,7 @@ fun DashboardScreen(
             Snackbar(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 84.dp, start = 16.dp, end = 16.dp)
+                    .padding(bottom = snackbarBottomPadding, start = 16.dp, end = 16.dp)
             ) {
                 Text(text = message)
             }
