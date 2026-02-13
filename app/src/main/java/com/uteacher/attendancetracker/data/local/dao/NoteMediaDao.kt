@@ -22,6 +22,9 @@ interface NoteMediaDao {
     @Query("SELECT COUNT(*) FROM note_media WHERE filePath = :filePath")
     suspend fun countMediaReferences(filePath: String): Int
 
+    @Query("SELECT filePath FROM note_media")
+    suspend fun getAllFilePaths(): List<String>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMedia(media: NoteMediaEntity): Long
 

@@ -11,6 +11,7 @@ import com.uteacher.attendancetracker.data.repository.StudentRepository
 import com.uteacher.attendancetracker.di.appModule
 import com.uteacher.attendancetracker.di.repositoryModule
 import com.uteacher.attendancetracker.di.viewModelModule
+import com.uteacher.attendancetracker.util.MediaCleanupScheduler
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin
@@ -40,6 +41,8 @@ class AttendanceTrackerApplication : Application() {
         }.onFailure { throwable ->
             Log.e(REPO_TAG, "Repository initialization failed", throwable)
         }
+
+        MediaCleanupScheduler.schedule(this)
     }
 
     private companion object {

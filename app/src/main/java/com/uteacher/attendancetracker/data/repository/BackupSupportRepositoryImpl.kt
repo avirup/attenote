@@ -3,6 +3,7 @@ package com.uteacher.attendancetracker.data.repository
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.net.Uri
+import android.os.Environment
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.uteacher.attendancetracker.data.local.AppDatabase
@@ -13,7 +14,6 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.security.MessageDigest
-import java.time.Instant
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -27,48 +27,51 @@ class BackupSupportRepositoryImpl(
     private val context: Context
 ) : BackupSupportRepository {
 
-    override suspend fun exportBackup(destinationUri: Uri): RepositoryResult<Unit> = withContext(Dispatchers.IO) {
-        val destinationStream = context.contentResolver.openOutputStream(destinationUri)
-            ?: return@withContext RepositoryResult.Error("Unable to open destination Uri")
+    override suspend fun exportBackup(): RepositoryResult<String> = withContext(Dispatchers.IO) {
+        val downloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: File(context.filesDir, EXPORTS_DIR)
+        if (!downloadsDir.exists()) {
+            downloadsDir.mkdirs()
+        }
 
-        val checksumByPath = linkedMapOf<String, String>()
-        try {
+        val zipFile = File(downloadsDir, "attenote_backup_${System.currentTimeMillis()}.zip")
+        val checksumByEntry = linkedMapOf<String, String>()
+
+        return@withContext try {
             checkpointAndCloseDatabase()
 
-            ZipOutputStream(BufferedOutputStream(destinationStream)).use { zip ->
-                val dbFile = context.getDatabasePath(AppDatabase.DATABASE_NAME)
-                if (!dbFile.exists()) {
+            ZipOutputStream(BufferedOutputStream(FileOutputStream(zipFile))).use { zip ->
+                val liveDbFile = context.getDatabasePath(AppDatabase.DATABASE_NAME)
+                if (!liveDbFile.exists()) {
                     return@withContext RepositoryResult.Error("Database file not found")
                 }
-                addFileToZip(zip, dbFile, "attenote.db", checksumByPath)
+                addFileToZip(zip, liveDbFile, DB_BACKUP_ENTRY, checksumByEntry)
 
-                val datastoreDir = File(context.filesDir, DATASTORE_DIR)
-                if (datastoreDir.exists()) {
-                    datastoreDir.walkTopDown()
-                        .filter { it.isFile && it.name.endsWith(DATASTORE_SUFFIX) }
-                        .forEach { file ->
-                            val relative = file.relativeTo(datastoreDir).invariantSeparatorsPath
-                            addFileToZip(zip, file, "$DATASTORE_DIR/$relative", checksumByPath)
-                        }
+                val liveDataStoreFile = File(context.filesDir, "$DATASTORE_DIR/$DATASTORE_FILE_NAME")
+                if (liveDataStoreFile.exists()) {
+                    addFileToZip(zip, liveDataStoreFile, DATASTORE_BACKUP_ENTRY, checksumByEntry)
                 }
 
-                val imagesDir = File(context.filesDir, IMAGES_DIR)
-                if (imagesDir.exists()) {
-                    imagesDir.walkTopDown()
-                        .filter { it.isFile }
-                        .forEach { file ->
-                            val relative = file.relativeTo(imagesDir).invariantSeparatorsPath
-                            addFileToZip(zip, file, "$IMAGES_DIR/$relative", checksumByPath)
-                        }
-                }
+                addDirectoryFilesToZip(
+                    zip = zip,
+                    sourceDir = File(context.filesDir, APP_IMAGES_DIR),
+                    entryPrefix = "$APP_IMAGES_DIR/",
+                    checksumByEntry = checksumByEntry
+                )
+                addDirectoryFilesToZip(
+                    zip = zip,
+                    sourceDir = File(context.filesDir, NOTE_MEDIA_DIR),
+                    entryPrefix = "$NOTE_MEDIA_DIR/",
+                    checksumByEntry = checksumByEntry
+                )
 
-                val manifest = createManifestJson(checksumByPath)
+                val manifestJson = createManifestJson(checksumByEntry)
                 zip.putNextEntry(ZipEntry(MANIFEST_FILE))
-                zip.write(manifest.toByteArray(Charsets.UTF_8))
+                zip.write(manifestJson.toByteArray(Charsets.UTF_8))
                 zip.closeEntry()
             }
 
-            RepositoryResult.Success(Unit)
+            RepositoryResult.Success(zipFile.absolutePath)
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to export backup: ${e.message}")
         } finally {
@@ -77,68 +80,108 @@ class BackupSupportRepositoryImpl(
     }
 
     override suspend fun importBackup(sourceUri: Uri): RepositoryResult<Unit> = withContext(Dispatchers.IO) {
-        val extracted = runCatching { extractBackup(sourceUri) }
-            .getOrElse { return@withContext RepositoryResult.Error("Failed to read backup: ${it.message}") }
+        val extractedBackup = runCatching { extractBackup(sourceUri) }
+            .getOrElse {
+                return@withContext RepositoryResult.Error("Failed to read backup: ${it.message}")
+            }
 
-        try {
-            validateManifest(extracted.manifest, extracted.files)
+        return@withContext try {
+            validateManifest(extractedBackup.manifest, extractedBackup.files)
 
-            writeRestoreJournal(phase = JOURNAL_PHASE_EXTRACTING)
+            val stagedPaths = mutableMapOf(
+                KEY_DB to extractedBackup.databaseFile.absolutePath,
+                KEY_APP_IMAGES to extractedBackup.appImagesDir.absolutePath,
+                KEY_NOTE_MEDIA to extractedBackup.noteMediaDir.absolutePath
+            ).apply {
+                extractedBackup.datastoreFile?.let { put(KEY_DATASTORE, it.absolutePath) }
+            }
+            writeRestoreJournal(
+                RestoreJournal(
+                    phase = RestorePhase.EXTRACTING,
+                    timestamp = System.currentTimeMillis(),
+                    stagedPaths = stagedPaths
+                )
+            )
+
             checkpointAndCloseDatabase()
 
-            backupLiveData()
-            writeRestoreJournal(phase = JOURNAL_PHASE_SWAPPING)
+            val backupPaths = moveLiveToBackupOld()
+            writeRestoreJournal(
+                RestoreJournal(
+                    phase = RestorePhase.SWAPPING,
+                    timestamp = System.currentTimeMillis(),
+                    stagedPaths = stagedPaths,
+                    backupPaths = backupPaths
+                )
+            )
 
-            restoreExtractedData(extracted)
+            moveStagedToLive(extractedBackup)
 
-            writeRestoreJournal(phase = JOURNAL_PHASE_COMPLETE)
-            cleanupBackupData()
-            restoreJournalFile().delete()
+            writeRestoreJournal(
+                RestoreJournal(
+                    phase = RestorePhase.COMPLETED,
+                    timestamp = System.currentTimeMillis(),
+                    stagedPaths = stagedPaths,
+                    backupPaths = backupPaths
+                )
+            )
+
+            cleanupAfterSuccessfulRestore()
             RepositoryResult.Success(Unit)
         } catch (e: Exception) {
-            runCatching { rollbackFromBackupData() }
+            runCatching {
+                rollbackFromBackup(readRestoreJournal()?.backupPaths.orEmpty())
+                writeRestoreJournal(
+                    RestoreJournal(
+                        phase = RestorePhase.ROLLBACK_ATTEMPTED,
+                        timestamp = System.currentTimeMillis(),
+                        stagedPaths = emptyMap(),
+                        backupPaths = readRestoreJournal()?.backupPaths.orEmpty()
+                    )
+                )
+            }
             RepositoryResult.Error("Failed to import backup: ${e.message}")
         } finally {
             reopenDatabase()
-            extracted.stagingDir.deleteRecursively()
         }
     }
 
-    override suspend fun hasInterruptedRestore(): Boolean = withContext(Dispatchers.IO) {
-        val journal = restoreJournalFile()
-        if (!journal.exists()) {
-            return@withContext false
-        }
+    override suspend fun checkAndRecoverInterruptedRestore(): RepositoryResult<Unit> =
+        withContext(Dispatchers.IO) {
+            val journal = readRestoreJournal() ?: return@withContext RepositoryResult.Success(Unit)
 
-        val phase = runCatching {
-            JSONObject(journal.readText()).optString("phase", "")
-        }.getOrDefault("")
+            return@withContext try {
+                when (journal.phase) {
+                    RestorePhase.EXTRACTING -> {
+                        // Extraction didn't finish swapping, just clear staged leftovers.
+                        clearStagingDirectory()
+                    }
 
-        phase.isNotBlank() && phase != JOURNAL_PHASE_COMPLETE
-    }
+                    RestorePhase.SWAPPING -> {
+                        // Best-effort rollback to pre-import data.
+                        rollbackFromBackup(journal.backupPaths)
+                        clearStagingDirectory()
+                        clearBackupOldDirectory()
+                    }
 
-    override suspend fun completeInterruptedRestore(): RepositoryResult<Unit> = withContext(Dispatchers.IO) {
-        val journal = restoreJournalFile()
-        if (!journal.exists()) {
-            return@withContext RepositoryResult.Success(Unit)
-        }
+                    RestorePhase.COMPLETED -> {
+                        clearBackupOldDirectory()
+                        clearStagingDirectory()
+                    }
 
-        return@withContext try {
-            val phase = JSONObject(journal.readText()).optString("phase", "")
-            if (phase == JOURNAL_PHASE_COMPLETE) {
-                cleanupBackupData()
-            } else {
-                rollbackFromBackupData()
-                cleanupBackupData()
+                    RestorePhase.ROLLBACK_ATTEMPTED -> {
+                        // Keep live data as-is; clear bookkeeping artifacts.
+                        clearStagingDirectory()
+                        clearBackupOldDirectory()
+                    }
+                }
+                restoreJournalFile().delete()
+                reopenDatabase()
+                RepositoryResult.Success(Unit)
+            } catch (e: Exception) {
+                RepositoryResult.Error("Failed to recover interrupted restore: ${e.message}")
             }
-            journal.delete()
-            RepositoryResult.Success(Unit)
-        } catch (e: Exception) {
-            RepositoryResult.Error("Failed to complete interrupted restore: ${e.message}")
-        } finally {
-            reopenDatabase()
         }
-    }
 
     private fun checkpointAndCloseDatabase() {
         runCatching { db.openHelper.writableDatabase.execSQL("PRAGMA wal_checkpoint(TRUNCATE)") }
@@ -150,68 +193,86 @@ class BackupSupportRepositoryImpl(
         runCatching { dataStore.data }
     }
 
-    private fun createManifestJson(checksumByPath: Map<String, String>): String {
+    private fun createManifestJson(fileChecksums: Map<String, String>): String {
         val checksumsJson = JSONObject().apply {
-            checksumByPath.forEach { (path, checksum) ->
-                put(path, "sha256:$checksum")
+            fileChecksums.forEach { (entryPath, checksum) ->
+                put(entryPath, checksum)
             }
         }
 
         val isDebugBuild = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        val appVersion = appVersionName()
 
         return JSONObject()
             .put("applicationId", context.packageName)
             .put("buildVariant", if (isDebugBuild) "debug" else "release")
-            .put("appVersion", appVersion)
+            .put("appVersion", appVersionName())
             .put("schemaVersion", SCHEMA_VERSION)
-            .put("timestamp", Instant.now().toString())
+            .put("timestamp", System.currentTimeMillis())
             .put("fileChecksums", checksumsJson)
             .toString()
     }
 
+    private fun addDirectoryFilesToZip(
+        zip: ZipOutputStream,
+        sourceDir: File,
+        entryPrefix: String,
+        checksumByEntry: MutableMap<String, String>
+    ) {
+        if (!sourceDir.exists()) return
+        sourceDir.walkTopDown()
+            .filter { it.isFile }
+            .forEach { file ->
+                val relative = file.relativeTo(sourceDir).invariantSeparatorsPath
+                addFileToZip(zip, file, "$entryPrefix$relative", checksumByEntry)
+            }
+    }
+
     private fun addFileToZip(
         zip: ZipOutputStream,
-        file: File,
+        sourceFile: File,
         entryName: String,
-        checksumByPath: MutableMap<String, String>
+        checksumByEntry: MutableMap<String, String>
     ) {
         zip.putNextEntry(ZipEntry(entryName))
-        FileInputStream(file).use { input ->
+        FileInputStream(sourceFile).use { input ->
             input.copyTo(zip)
         }
         zip.closeEntry()
-        checksumByPath[entryName] = sha256(file)
+        checksumByEntry[entryName] = sha256(sourceFile)
     }
 
     private fun extractBackup(sourceUri: Uri): ExtractedBackup {
-        val input = context.contentResolver.openInputStream(sourceUri)
-            ?: throw IllegalStateException("Unable to open backup source Uri")
+        val sourceStream = context.contentResolver.openInputStream(sourceUri)
+            ?: throw IllegalStateException("Unable to open backup source uri")
 
-        val stagingDir = File(context.cacheDir, "backup_import_${System.currentTimeMillis()}")
-        stagingDir.mkdirs()
+        val stagingRoot = restoreStagingRoot()
+        stagingRoot.deleteRecursively()
+        stagingRoot.mkdirs()
 
         val extractedFiles = linkedMapOf<String, File>()
         var manifestJson: JSONObject? = null
 
-        ZipInputStream(BufferedInputStream(input)).use { zipInput ->
-            var entry: ZipEntry? = zipInput.nextEntry
+        ZipInputStream(BufferedInputStream(sourceStream)).use { zipInput ->
+            var entry = zipInput.nextEntry
             while (entry != null) {
                 val entryName = entry.name.replace('\\', '/')
                 if (!entry.isDirectory) {
-                    if (entryName == MANIFEST_FILE) {
-                        manifestJson = JSONObject(zipInput.readBytes().decodeToString())
-                    } else if (
-                        entryName == "attenote.db" ||
-                        entryName.startsWith("$DATASTORE_DIR/") ||
-                        entryName.startsWith("$IMAGES_DIR/")
-                    ) {
-                        val outFile = safeOutputFile(stagingDir, entryName)
-                        outFile.parentFile?.mkdirs()
-                        FileOutputStream(outFile).use { output ->
-                            zipInput.copyTo(output)
+                    when {
+                        entryName == MANIFEST_FILE -> {
+                            manifestJson = JSONObject(zipInput.readBytes().decodeToString())
                         }
-                        extractedFiles[entryName] = outFile
+
+                        entryName == DB_BACKUP_ENTRY ||
+                            entryName == DATASTORE_BACKUP_ENTRY ||
+                            entryName.startsWith("$APP_IMAGES_DIR/") ||
+                            entryName.startsWith("$NOTE_MEDIA_DIR/") -> {
+                            val outputFile = safeOutputFile(stagingRoot, entryName)
+                            outputFile.parentFile?.mkdirs()
+                            FileOutputStream(outputFile).use { output ->
+                                zipInput.copyTo(output)
+                            }
+                            extractedFiles[entryName] = outputFile
+                        }
                     }
                 }
                 zipInput.closeEntry()
@@ -219,14 +280,19 @@ class BackupSupportRepositoryImpl(
             }
         }
 
-        if (!extractedFiles.containsKey("attenote.db")) {
-            throw IllegalStateException("Backup archive does not contain attenote.db")
-        }
+        val stagedDbFile = extractedFiles[DB_BACKUP_ENTRY]
+            ?: throw IllegalStateException("Backup archive missing $DB_BACKUP_ENTRY")
+        val stagedAppImagesDir = File(stagingRoot, APP_IMAGES_DIR)
+        val stagedNoteMediaDir = File(stagingRoot, NOTE_MEDIA_DIR)
 
         return ExtractedBackup(
-            stagingDir = stagingDir,
+            stagingRoot = stagingRoot,
             files = extractedFiles,
-            manifest = manifestJson
+            manifest = manifestJson,
+            databaseFile = stagedDbFile,
+            datastoreFile = extractedFiles[DATASTORE_BACKUP_ENTRY],
+            appImagesDir = stagedAppImagesDir,
+            noteMediaDir = stagedNoteMediaDir
         )
     }
 
@@ -234,121 +300,160 @@ class BackupSupportRepositoryImpl(
         manifest: JSONObject?,
         extractedFiles: Map<String, File>
     ) {
-        val actualManifest = manifest ?: return
+        val actualManifest = manifest ?: throw IllegalStateException("Missing $MANIFEST_FILE")
 
         val appId = actualManifest.optString("applicationId")
-        if (appId.isNotBlank() && appId != context.packageName) {
-            throw IllegalStateException("Backup app id mismatch: $appId")
+        if (appId != context.packageName) {
+            throw IllegalStateException("Backup applicationId mismatch: $appId")
         }
 
-        val schemaVersion = actualManifest.optInt("schemaVersion", SCHEMA_VERSION)
+        val expectedVariant = if ((context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            "debug"
+        } else {
+            "release"
+        }
+        val manifestVariant = actualManifest.optString("buildVariant")
+        if (manifestVariant.isNotBlank() && manifestVariant != expectedVariant) {
+            throw IllegalStateException("Backup build variant mismatch: $manifestVariant")
+        }
+
+        val schemaVersion = actualManifest.optInt("schemaVersion", -1)
         if (schemaVersion != SCHEMA_VERSION) {
-            throw IllegalStateException("Unsupported schema version: $schemaVersion")
+            throw IllegalStateException("Unsupported schemaVersion: $schemaVersion")
         }
 
-        val checksums = actualManifest.optJSONObject("fileChecksums") ?: return
-        val keys = checksums.keys()
+        val checksumsJson = actualManifest.optJSONObject("fileChecksums")
+            ?: throw IllegalStateException("Manifest missing fileChecksums")
+        val keys = checksumsJson.keys()
         while (keys.hasNext()) {
-            val path = keys.next()
-            val expected = checksums.optString(path).removePrefix("sha256:")
-            val actual = extractedFiles[path]?.let(::sha256)
-                ?: throw IllegalStateException("Missing file from backup archive: $path")
-            if (!expected.equals(actual, ignoreCase = true)) {
-                throw IllegalStateException("Checksum mismatch for $path")
+            val entry = keys.next()
+            val expectedChecksum = checksumsJson.optString(entry)
+            val extractedFile = extractedFiles[entry]
+                ?: throw IllegalStateException("Manifest references missing file: $entry")
+            val actualChecksum = sha256(extractedFile)
+            if (!expectedChecksum.equals(actualChecksum, ignoreCase = true)) {
+                throw IllegalStateException("Checksum mismatch for $entry")
             }
         }
     }
 
-    private fun restoreExtractedData(extracted: ExtractedBackup) {
-        val dbFile = context.getDatabasePath(AppDatabase.DATABASE_NAME)
-        dbFile.parentFile?.mkdirs()
-        copyFile(extracted.files.getValue("attenote.db"), dbFile)
-
-        val datastoreStaged = File(extracted.stagingDir, DATASTORE_DIR)
-        val datastoreLive = File(context.filesDir, DATASTORE_DIR)
-        if (datastoreStaged.exists()) {
-            datastoreLive.deleteRecursively()
-            copyDirectory(datastoreStaged, datastoreLive)
-        }
-
-        val imagesStaged = File(extracted.stagingDir, IMAGES_DIR)
-        val imagesLive = File(context.filesDir, IMAGES_DIR)
-        if (imagesStaged.exists()) {
-            imagesLive.deleteRecursively()
-            copyDirectory(imagesStaged, imagesLive)
-        }
-    }
-
-    private fun backupLiveData() {
-        val backupRoot = backupRootDir()
+    private fun moveLiveToBackupOld(): Map<String, String> {
+        val backupRoot = backupOldRoot()
         backupRoot.deleteRecursively()
         backupRoot.mkdirs()
 
-        val dbFile = context.getDatabasePath(AppDatabase.DATABASE_NAME)
-        if (dbFile.exists()) {
-            copyFile(dbFile, File(backupRoot, "db/${AppDatabase.DATABASE_NAME}"))
+        val map = mutableMapOf<String, String>()
+
+        val liveDb = context.getDatabasePath(AppDatabase.DATABASE_NAME)
+        if (liveDb.exists()) {
+            val backupDb = File(backupRoot, "db/${AppDatabase.DATABASE_NAME}")
+            movePath(liveDb, backupDb)
+            map[KEY_DB] = backupDb.absolutePath
         }
 
-        val datastoreDir = File(context.filesDir, DATASTORE_DIR)
-        if (datastoreDir.exists()) {
-            copyDirectory(datastoreDir, File(backupRoot, DATASTORE_DIR))
+        val liveDataStore = File(context.filesDir, DATASTORE_DIR)
+        if (liveDataStore.exists()) {
+            val backupDataStore = File(backupRoot, DATASTORE_DIR)
+            movePath(liveDataStore, backupDataStore)
+            map[KEY_DATASTORE] = backupDataStore.absolutePath
         }
 
-        val imagesDir = File(context.filesDir, IMAGES_DIR)
-        if (imagesDir.exists()) {
-            copyDirectory(imagesDir, File(backupRoot, IMAGES_DIR))
+        val liveImages = File(context.filesDir, APP_IMAGES_DIR)
+        if (liveImages.exists()) {
+            val backupImages = File(backupRoot, APP_IMAGES_DIR)
+            movePath(liveImages, backupImages)
+            map[KEY_APP_IMAGES] = backupImages.absolutePath
+        }
+
+        val liveNoteMedia = File(context.filesDir, NOTE_MEDIA_DIR)
+        if (liveNoteMedia.exists()) {
+            val backupNoteMedia = File(backupRoot, NOTE_MEDIA_DIR)
+            movePath(liveNoteMedia, backupNoteMedia)
+            map[KEY_NOTE_MEDIA] = backupNoteMedia.absolutePath
+        }
+
+        return map
+    }
+
+    private fun moveStagedToLive(extracted: ExtractedBackup) {
+        val liveDb = context.getDatabasePath(AppDatabase.DATABASE_NAME)
+        liveDb.parentFile?.mkdirs()
+        movePath(extracted.databaseFile, liveDb)
+
+        val stagedDataStoreFile = extracted.datastoreFile
+        if (stagedDataStoreFile != null && stagedDataStoreFile.exists()) {
+            val liveDataStoreFile = File(context.filesDir, "$DATASTORE_DIR/$DATASTORE_FILE_NAME")
+            movePath(stagedDataStoreFile, liveDataStoreFile)
+        }
+
+        val liveImagesDir = File(context.filesDir, APP_IMAGES_DIR)
+        if (extracted.appImagesDir.exists()) {
+            movePath(extracted.appImagesDir, liveImagesDir)
+        }
+
+        val liveNoteMediaDir = File(context.filesDir, NOTE_MEDIA_DIR)
+        if (extracted.noteMediaDir.exists()) {
+            movePath(extracted.noteMediaDir, liveNoteMediaDir)
         }
     }
 
-    private fun rollbackFromBackupData() {
-        val backupRoot = backupRootDir()
-        if (!backupRoot.exists()) return
-
-        val backedUpDb = File(backupRoot, "db/${AppDatabase.DATABASE_NAME}")
-        if (backedUpDb.exists()) {
+    private fun rollbackFromBackup(backupPaths: Map<String, String>) {
+        val backupDb = backupPaths[KEY_DB]?.let(::File)
+        if (backupDb != null && backupDb.exists()) {
             val liveDb = context.getDatabasePath(AppDatabase.DATABASE_NAME)
-            liveDb.parentFile?.mkdirs()
-            copyFile(backedUpDb, liveDb)
+            movePath(backupDb, liveDb)
         }
 
-        val backedUpDataStore = File(backupRoot, DATASTORE_DIR)
-        if (backedUpDataStore.exists()) {
+        val backupDataStore = backupPaths[KEY_DATASTORE]?.let(::File)
+        if (backupDataStore != null && backupDataStore.exists()) {
             val liveDataStore = File(context.filesDir, DATASTORE_DIR)
-            liveDataStore.deleteRecursively()
-            copyDirectory(backedUpDataStore, liveDataStore)
+            movePath(backupDataStore, liveDataStore)
         }
 
-        val backedUpImages = File(backupRoot, IMAGES_DIR)
-        if (backedUpImages.exists()) {
-            val liveImages = File(context.filesDir, IMAGES_DIR)
-            liveImages.deleteRecursively()
-            copyDirectory(backedUpImages, liveImages)
+        val backupImages = backupPaths[KEY_APP_IMAGES]?.let(::File)
+        if (backupImages != null && backupImages.exists()) {
+            val liveImages = File(context.filesDir, APP_IMAGES_DIR)
+            movePath(backupImages, liveImages)
+        }
+
+        val backupNoteMedia = backupPaths[KEY_NOTE_MEDIA]?.let(::File)
+        if (backupNoteMedia != null && backupNoteMedia.exists()) {
+            val liveNoteMedia = File(context.filesDir, NOTE_MEDIA_DIR)
+            movePath(backupNoteMedia, liveNoteMedia)
         }
     }
 
-    private fun cleanupBackupData() {
-        backupRootDir().deleteRecursively()
+    private fun cleanupAfterSuccessfulRestore() {
+        clearBackupOldDirectory()
+        clearStagingDirectory()
+        restoreJournalFile().delete()
     }
 
-    private fun writeRestoreJournal(phase: String) {
-        val journal = JSONObject()
-            .put("phase", phase)
-            .put("timestamp", Instant.now().toString())
-        restoreJournalFile().writeText(journal.toString())
+    private fun clearBackupOldDirectory() {
+        backupOldRoot().deleteRecursively()
     }
 
-    private fun restoreJournalFile(): File = File(context.filesDir, RESTORE_JOURNAL_FILE)
+    private fun clearStagingDirectory() {
+        restoreStagingRoot().deleteRecursively()
+    }
 
-    private fun backupRootDir(): File = File(context.cacheDir, RESTORE_BACKUP_DIR)
-
-    private fun safeOutputFile(root: File, entryName: String): File {
-        val outFile = File(root, entryName)
-        val rootPath = root.canonicalPath
-        val outPath = outFile.canonicalPath
-        if (!outPath.startsWith(rootPath + File.separator)) {
-            throw IllegalStateException("Unsafe zip entry path: $entryName")
+    private fun movePath(source: File, target: File) {
+        if (!source.exists()) return
+        if (target.exists()) {
+            target.deleteRecursively()
         }
-        return outFile
+        target.parentFile?.mkdirs()
+        if (source.renameTo(target)) {
+            return
+        }
+
+        if (source.isDirectory) {
+            copyDirectory(source, target)
+            source.deleteRecursively()
+        } else {
+            copyFile(source, target)
+            source.delete()
+        }
     }
 
     private fun copyDirectory(sourceDir: File, targetDir: File) {
@@ -372,18 +477,46 @@ class BackupSupportRepositoryImpl(
         }
     }
 
+    private fun safeOutputFile(root: File, entryName: String): File {
+        val outputFile = File(root, entryName)
+        val rootPath = root.canonicalPath
+        val outputPath = outputFile.canonicalPath
+        if (!outputPath.startsWith(rootPath + File.separator)) {
+            throw IllegalStateException("Unsafe zip entry path: $entryName")
+        }
+        return outputFile
+    }
+
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
             while (true) {
-                val bytesRead = input.read(buffer)
-                if (bytesRead <= 0) break
-                digest.update(buffer, 0, bytesRead)
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
             }
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
+
+    private fun writeRestoreJournal(journal: RestoreJournal) {
+        restoreJournalFile().writeText(journal.toJson().toString())
+    }
+
+    private fun readRestoreJournal(): RestoreJournal? {
+        val file = restoreJournalFile()
+        if (!file.exists()) return null
+        return runCatching {
+            RestoreJournal.fromJson(JSONObject(file.readText()))
+        }.getOrNull()
+    }
+
+    private fun restoreJournalFile(): File = File(context.filesDir, RESTORE_JOURNAL_FILE)
+
+    private fun restoreStagingRoot(): File = File(context.filesDir, RESTORE_STAGING_DIR)
+
+    private fun backupOldRoot(): File = File(context.filesDir, BACKUP_OLD_DIR)
 
     @Suppress("DEPRECATION")
     private fun appVersionName(): String {
@@ -393,21 +526,83 @@ class BackupSupportRepositoryImpl(
     }
 
     private data class ExtractedBackup(
-        val stagingDir: File,
+        val stagingRoot: File,
         val files: Map<String, File>,
-        val manifest: JSONObject?
+        val manifest: JSONObject?,
+        val databaseFile: File,
+        val datastoreFile: File?,
+        val appImagesDir: File,
+        val noteMediaDir: File
     )
 
+    private data class RestoreJournal(
+        val phase: RestorePhase,
+        val timestamp: Long,
+        val stagedPaths: Map<String, String> = emptyMap(),
+        val backupPaths: Map<String, String> = emptyMap()
+    ) {
+        fun toJson(): JSONObject {
+            return JSONObject()
+                .put("phase", phase.name)
+                .put("timestamp", timestamp)
+                .put("stagedPaths", JSONObject(stagedPaths))
+                .put("backupPaths", JSONObject(backupPaths))
+        }
+
+        companion object {
+            fun fromJson(json: JSONObject): RestoreJournal {
+                val phaseName = json.optString("phase", RestorePhase.ROLLBACK_ATTEMPTED.name)
+                val phase = runCatching { RestorePhase.valueOf(phaseName) }
+                    .getOrDefault(RestorePhase.ROLLBACK_ATTEMPTED)
+                return RestoreJournal(
+                    phase = phase,
+                    timestamp = json.optLong("timestamp", 0L),
+                    stagedPaths = json.optJSONObject("stagedPaths").toMap(),
+                    backupPaths = json.optJSONObject("backupPaths").toMap()
+                )
+            }
+
+            private fun JSONObject?.toMap(): Map<String, String> {
+                if (this == null) return emptyMap()
+                val map = linkedMapOf<String, String>()
+                val keys = keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    map[key] = optString(key)
+                }
+                return map
+            }
+        }
+    }
+
+    private enum class RestorePhase {
+        EXTRACTING,
+        SWAPPING,
+        COMPLETED,
+        ROLLBACK_ATTEMPTED
+    }
+
     private companion object {
-        const val DATASTORE_DIR = "datastore"
-        const val DATASTORE_SUFFIX = ".preferences_pb"
-        const val IMAGES_DIR = "app_images"
-        const val MANIFEST_FILE = "backup_manifest.json"
-        const val RESTORE_JOURNAL_FILE = "restore_journal.json"
-        const val RESTORE_BACKUP_DIR = "restore_backup"
         const val SCHEMA_VERSION = 1
-        const val JOURNAL_PHASE_EXTRACTING = "extracting"
-        const val JOURNAL_PHASE_SWAPPING = "swapping"
-        const val JOURNAL_PHASE_COMPLETE = "complete"
+
+        const val EXPORTS_DIR = "exports"
+
+        const val DATASTORE_DIR = "datastore"
+        const val DATASTORE_FILE_NAME = "attenote_preferences.preferences_pb"
+        const val APP_IMAGES_DIR = "app_images"
+        const val NOTE_MEDIA_DIR = "note_media"
+
+        const val MANIFEST_FILE = "backup_manifest.json"
+        const val DB_BACKUP_ENTRY = "attendance_tracker_db"
+        const val DATASTORE_BACKUP_ENTRY = DATASTORE_FILE_NAME
+
+        const val RESTORE_JOURNAL_FILE = "restore_journal.json"
+        const val RESTORE_STAGING_DIR = "_restore_staging"
+        const val BACKUP_OLD_DIR = "_backup_old"
+
+        const val KEY_DB = "database"
+        const val KEY_DATASTORE = "datastore"
+        const val KEY_APP_IMAGES = "app_images"
+        const val KEY_NOTE_MEDIA = "note_media"
     }
 }

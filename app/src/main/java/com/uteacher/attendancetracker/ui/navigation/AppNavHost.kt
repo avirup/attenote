@@ -32,6 +32,7 @@ import com.uteacher.attendancetracker.ui.screen.manageclass.EditClassScreen
 import com.uteacher.attendancetracker.ui.screen.manageclass.ManageClassListScreen
 import com.uteacher.attendancetracker.ui.screen.managestudents.ManageStudentsScreen
 import com.uteacher.attendancetracker.ui.screen.notes.AddNoteScreen
+import com.uteacher.attendancetracker.ui.screen.settings.SettingsScreen
 import com.uteacher.attendancetracker.ui.screen.setup.SetupScreen
 import com.uteacher.attendancetracker.ui.screen.splash.SplashScreen
 
@@ -216,7 +217,9 @@ fun AppNavHost(
                 onActionBarChanged = onActionBarChanged,
                 onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
             )
-            PlaceholderScaffold(title = "Settings", readinessStep = "13")
+            SettingsScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
     }
 }

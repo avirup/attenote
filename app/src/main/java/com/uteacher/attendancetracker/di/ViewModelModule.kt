@@ -8,8 +8,10 @@ import com.uteacher.attendancetracker.ui.screen.notes.AddNoteViewModel
 import com.uteacher.attendancetracker.ui.screen.manageclass.EditClassViewModel
 import com.uteacher.attendancetracker.ui.screen.manageclass.ManageClassListViewModel
 import com.uteacher.attendancetracker.ui.screen.managestudents.ManageStudentsViewModel
+import com.uteacher.attendancetracker.ui.screen.settings.SettingsViewModel
 import com.uteacher.attendancetracker.ui.screen.setup.SetupViewModel
 import com.uteacher.attendancetracker.ui.screen.splash.SplashViewModel
+import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
@@ -45,6 +47,14 @@ val viewModelModule = module {
             classRepository = get(),
             studentRepository = get(),
             attendanceRepository = get()
+        )
+    }
+    viewModel {
+        SettingsViewModel(
+            settingsRepository = get(),
+            backupRepository = get(),
+            biometricHelper = get(),
+            context = androidContext()
         )
     }
 }

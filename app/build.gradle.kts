@@ -84,4 +84,5 @@ dependencies {
     implementation(libs.kotlin.csv.jvm)
     implementation(libs.coil.compose)
     implementation(libs.rich.editor.compose)
+    implementation(libs.androidx.work.runtime.ktx)
 }

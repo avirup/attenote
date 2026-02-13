@@ -27,6 +27,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.compose.DialogNavigator
+import com.uteacher.attendancetracker.data.repository.BackupSupportRepository
 import com.uteacher.attendancetracker.data.repository.SettingsPreferencesRepository
 import com.uteacher.attendancetracker.ui.navigation.AppNavHost
 import com.uteacher.attendancetracker.ui.navigation.AppRoute
@@ -40,6 +41,7 @@ import org.koin.android.ext.android.inject
 class MainActivity : FragmentActivity() {
 
     private val settingsRepo: SettingsPreferencesRepository by inject()
+    private val backupRepo: BackupSupportRepository by inject()
     private val biometricHelper: BiometricHelper by inject()
 
     private var showContent by mutableStateOf(false)
@@ -56,6 +58,7 @@ class MainActivity : FragmentActivity() {
         applyActionBarState(title = "Splash", showBack = false)
 
         lifecycleScope.launch {
+            backupRepo.checkAndRecoverInterruptedRestore()
             val isSetupComplete = settingsRepo.isSetupComplete.first()
             val biometricEnabled = settingsRepo.biometricEnabled.first()
             Log.d(
