@@ -74,6 +74,20 @@ In addition to prompt-specific dependencies, ensure these are present before the
 - Prompt 12: `io.coil-kt:coil-compose`, `richeditor-compose`.
 - Prompt 13: `androidx.work:work-runtime-ktx`.
 
+### Implemented UX Addendum (February 14, 2026)
+The following behavior updates are now part of the baseline and should be treated as source-of-truth for rebuild validation:
+- **Dashboard calendar (Prompt 07):**
+  - Calendar is anchored at the bottom as an overlay panel, not only as a trailing scroll item.
+  - Hamburger menu/FAB is rendered above the calendar layer.
+  - Calendar supports vertical swipe gestures: swipe up to expand, swipe down to collapse.
+  - In collapsed mode, left/right arrows move by **day** (previous day / next day), not by week.
+  - Use chevrons for expand/collapse affordances (`v` when collapsed, `^` when expanded).
+- **Dashboard notes metadata (Prompt 07):**
+  - Note cards show both `Created on ...` and `Updated on ...` metadata.
+- **Settings save action (Prompt 13):**
+  - Save Profile action is hosted in the Android ActionBar right action (global top bar surface).
+  - Do not keep a duplicate inline "Save Profile" button inside Settings content.
+
 ### Step Handoff (Close Loose Ends Every Step)
 At the end of each prompt output, include:
 1. Completed scope (exactly what was done in this step).
@@ -3110,13 +3124,13 @@ class DashboardViewModel(
         // Data automatically updates via Flow collection
     }
 
-    fun onPreviousWeekClicked() {
-        val newDate = _uiState.value.selectedDate.minusWeeks(1)
+    fun onPreviousDayClicked() {
+        val newDate = _uiState.value.selectedDate.minusDays(1)
         _uiState.update { it.copy(selectedDate = newDate) }
     }
 
-    fun onNextWeekClicked() {
-        val newDate = _uiState.value.selectedDate.plusWeeks(1)
+    fun onNextDayClicked() {
+        val newDate = _uiState.value.selectedDate.plusDays(1)
         _uiState.update { it.copy(selectedDate = newDate) }
     }
 
@@ -3157,6 +3171,9 @@ class DashboardViewModel(
 IMPORTANT:
 - Remove `Scaffold(topBar = ...)` if present in draft code.
 - The app uses native ActionBar only; Compose screen-level top bars are not allowed.
+- Treat the calendar as a bottom-anchored panel in the final implementation.
+- Keep hamburger menu/FAB above the calendar layer.
+- Support vertical swipe gestures on calendar panel: up expands, down collapses.
 
 @Composable
 fun DashboardScreen(
@@ -3314,8 +3331,8 @@ fun DashboardScreen(
                         datesWithContent = uiState.datesWithClasses + uiState.datesWithNotes,
                         weekRange = viewModel.getWeekRange(uiState.selectedDate),
                         onDateSelected = { viewModel.onDateSelected(it) },
-                        onPreviousWeek = { viewModel.onPreviousWeekClicked() },
-                        onNextWeek = { viewModel.onNextWeekClicked() },
+                        onPreviousDay = { viewModel.onPreviousDayClicked() },
+                        onNextDay = { viewModel.onNextDayClicked() },
                         onPreviousMonth = { viewModel.onPreviousMonthClicked() },
                         onNextMonth = { viewModel.onNextMonthClicked() },
                         onToggleExpanded = { viewModel.onToggleCalendar() }
@@ -3458,9 +3475,15 @@ fun NoteCard(
                     )
                 }
 
-                // Last updated
+                // Created + updated metadata
                 Text(
-                    text = "Updated ${formatRelativeTime(note.updatedAt)}",
+                    text = "Created on ${formatRelativeTime(note.createdAt)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = "Updated on ${formatRelativeTime(note.updatedAt)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -3506,8 +3529,8 @@ fun CalendarSection(
     datesWithContent: Set<LocalDate>,
     weekRange: List<LocalDate>,
     onDateSelected: (LocalDate) -> Unit,
-    onPreviousWeek: () -> Unit,
-    onNextWeek: () -> Unit,
+    onPreviousDay: () -> Unit,
+    onNextDay: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onToggleExpanded: () -> Unit,
@@ -3537,8 +3560,8 @@ fun CalendarSection(
                 weekRange = weekRange,
                 datesWithContent = datesWithContent,
                 onDateSelected = onDateSelected,
-                onPreviousWeek = onPreviousWeek,
-                onNextWeek = onNextWeek,
+                onPreviousDay = onPreviousDay,
+                onNextDay = onNextDay,
                 onExpand = onToggleExpanded
             )
         }
@@ -3553,8 +3576,8 @@ fun WeekCalendarView(
     weekRange: List<LocalDate>,
     datesWithContent: Set<LocalDate>,
     onDateSelected: (LocalDate) -> Unit,
-    onPreviousWeek: () -> Unit,
-    onNextWeek: () -> Unit,
+    onPreviousDay: () -> Unit,
+    onNextDay: () -> Unit,
     onExpand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -3565,20 +3588,20 @@ fun WeekCalendarView(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Previous week button
-            IconButton(onClick = onPreviousWeek) {
-                Icon(Icons.Default.ChevronLeft, contentDescription = "Previous week")
+            // Previous day button
+            IconButton(onClick = onPreviousDay) {
+                Icon(Icons.Default.ChevronLeft, contentDescription = "Previous day")
             }
 
-            // Week label
+            // Selected day label
             Text(
-                text = "Week of ${weekRange.first().month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${weekRange.first().dayOfMonth}",
+                text = "${selectedDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${selectedDate.dayOfMonth}, ${selectedDate.year}",
                 style = MaterialTheme.typography.labelMedium
             )
 
-            // Next week button
-            IconButton(onClick = onNextWeek) {
-                Icon(Icons.Default.ChevronRight, contentDescription = "Next week")
+            // Next day button
+            IconButton(onClick = onNextDay) {
+                Icon(Icons.Default.ChevronRight, contentDescription = "Next day")
             }
 
             // Expand button
@@ -3946,10 +3969,10 @@ Manual testing checklist:
 - [ ] Today indicator (light background if today is in current week)
 - [ ] Content dots appear on dates with classes/notes
 - [ ] Tap date in week view → content updates, week view stays
-- [ ] Tap left arrow → previous week
-- [ ] Tap right arrow → next week
-- [ ] Week label updates ("Week of Jan 13")
-- [ ] Tap expand button (∨) → calendar expands to full month
+- [ ] Tap left arrow → previous day
+- [ ] Tap right arrow → next day
+- [ ] Selected date label updates ("Jan 13, 2026")
+- [ ] Tap expand chevron (v) → calendar expands to full month
 
 ### Month View (Expanded Calendar)
 - [ ] Full month grid visible
@@ -3959,14 +3982,14 @@ Manual testing checklist:
 - [ ] Tap "Previous month" → shows previous month
 - [ ] Tap "Next month" → shows next month
 - [ ] Tap date in month view → content updates, calendar auto-collapses to week view
-- [ ] Tap collapse button (∧) → calendar collapses to week view
+- [ ] Tap collapse chevron (^) → calendar collapses to week view
 
 ### Date Selection & Content Updates
 - [ ] Selected date shown in header ("Wednesday, Jan 15, 2026")
 - [ ] Scheduled classes refresh for new date
 - [ ] Notes refresh for new date
 - [ ] Calendar auto-collapses after date selection (from month view)
-- [ ] Week view updates to show week of newly selected date
+- [ ] Week row remains aligned to selected date context after day navigation
 
 ### Scheduled Classes Section
 - [ ] Classes appear only if date is within class date range AND matches schedule day
@@ -3981,7 +4004,7 @@ Manual testing checklist:
 - [ ] Tap "+ New Note" → navigates to AddNote with selected date, noteId = -1
 - [ ] Notes for selected date appear
 - [ ] Notes sorted by updatedAt desc
-- [ ] Note card shows: title, content preview (HTML stripped, 100 char limit), relative time
+- [ ] Note card shows: title, content preview (HTML stripped, 100 char limit), created-on metadata, updated-on metadata
 - [ ] Empty state shown when no notes
 - [ ] Tap "Open" → navigates to AddNote with correct date and noteId
 
@@ -4011,10 +4034,11 @@ Manual testing checklist:
 - [ ] Dates with both classes and notes show one dot
 
 ### Calendar Layout Position
-- [ ] Content order: Selected date header → Scheduled Classes → Notes → Calendar
-- [ ] Calendar appears at bottom of scrollable content
-- [ ] Scroll down to reach calendar
-- [ ] Calendar remains in collapsed/expanded state while scrolling
+- [ ] Content order: Selected date header → Scheduled Classes → Notes, with calendar anchored as bottom overlay panel
+- [ ] Calendar remains visible at the bottom without requiring scroll-to-end
+- [ ] Hamburger menu/FAB renders above the calendar panel
+- [ ] Swipe up on calendar expands to month view
+- [ ] Swipe down on calendar collapses to week view
 
 ### Edge Cases & Reactivity
 - [ ] Select date with no classes and no notes → both sections show empty states
@@ -8665,8 +8689,8 @@ class SettingsViewModel(
 
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel = koinViewModel(),
-    onNavigateBack: () -> Unit
+    onSetActionBarPrimaryAction: (ActionBarPrimaryAction?) -> Unit,
+    viewModel: SettingsViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -8685,22 +8709,27 @@ fun SettingsScreen(
         uri?.let { viewModel.onImportConfirmed(it) }
     }
 
-    Scaffold(
-        topBar = {
-            AttenoteTopAppBar(
-                title = "Settings",
-                onNavigateBack = onNavigateBack
+    SideEffect {
+        onSetActionBarPrimaryAction(
+            ActionBarPrimaryAction(
+                title = if (uiState.isLoading) "Saving..." else "Save",
+                enabled = !uiState.isLoading,
+                onClick = { viewModel.onSaveProfileClicked() }
             )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        )
+    }
+
+    DisposableEffect(onSetActionBarPrimaryAction) {
+        onDispose { onSetActionBarPrimaryAction(null) }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
             // Profile Section
             AttenoteSectionCard(title = "Profile") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -8800,14 +8829,6 @@ fun SettingsScreen(
                             enabled = uiState.canEnableBiometric && !uiState.isLoading
                         )
                     }
-
-                    // Save profile button
-                    AttenoteButton(
-                        text = "Save Profile",
-                        onClick = { viewModel.onSaveProfileClicked() },
-                        enabled = !uiState.isLoading,
-                        modifier = Modifier.fillMaxWidth()
-                    )
 
                     if (uiState.profileSaveSuccess) {
                         Text(
@@ -8940,7 +8961,6 @@ fun SettingsScreen(
                     )
                 }
             }
-        }
     }
 
     // Dialogs
@@ -9179,7 +9199,7 @@ val viewModelModule = module {
 
 composable<Settings> {
     SettingsScreen(
-        onNavigateBack = { navController.navigateUp() }
+        onSetActionBarPrimaryAction = onActionBarPrimaryActionChanged
     )
 }
 
@@ -9229,7 +9249,7 @@ Settings Module:
 □ CURRENT_YEAR shows "2026" (if current year is 2026)
 □ ACADEMIC_YEAR shows "2025-2026" before June 30, "2026-2027" after June 30
 □ FAB position radio buttons update Dashboard FAB position
-□ Profile save button triggers save and shows success message
+□ ActionBar "Save" action triggers profile save and shows success message
 □ Profile save error shows error message
 □ All settings persist across app restarts
 
@@ -9664,7 +9684,7 @@ Test each module end-to-end on device.
 5.2. Dashboard Module
 □ Dashboard loads with current date selected
 □ Calendar collapsed by default (shows week view)
-□ Week view shows 7 days with left/right arrows
+□ Week view shows 7 days with left/right arrows (previous day / next day)
 □ Tap calendar expand button → shows month view
 □ Tap date in calendar → updates selected date
 □ Calendar auto-collapses after date selection

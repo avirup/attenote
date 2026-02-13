@@ -9,13 +9,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -26,13 +31,13 @@ fun WeekCalendarView(
     weekRange: List<LocalDate>,
     datesWithContent: Set<LocalDate>,
     onDateSelected: (LocalDate) -> Unit,
-    onPreviousWeek: () -> Unit,
-    onNextWeek: () -> Unit,
+    onPreviousDay: () -> Unit,
+    onNextDay: () -> Unit,
     onExpand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val weekStart = weekRange.firstOrNull() ?: selectedDate
-    val weekLabel = "Week of ${weekStart.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${weekStart.dayOfMonth}"
+    val selectedMonthLabel = selectedDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+    val selectedDayLabel = "$selectedMonthLabel ${selectedDate.dayOfMonth}, ${selectedDate.year}"
 
     Column(modifier = modifier.padding(12.dp)) {
         Row(
@@ -41,19 +46,28 @@ fun WeekCalendarView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onPreviousWeek) {
-                    Text(text = "<")
+                IconButton(onClick = onPreviousDay) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        contentDescription = "Previous day"
+                    )
                 }
                 Text(
-                    text = weekLabel,
+                    text = selectedDayLabel,
                     style = MaterialTheme.typography.labelMedium
                 )
-                TextButton(onClick = onNextWeek) {
-                    Text(text = ">")
+                IconButton(onClick = onNextDay) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Next day"
+                    )
                 }
             }
-            TextButton(onClick = onExpand) {
-                Text(text = "v")
+            IconButton(onClick = onExpand) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Expand calendar"
+                )
             }
         }
 

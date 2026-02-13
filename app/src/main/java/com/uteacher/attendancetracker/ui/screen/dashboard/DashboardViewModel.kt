@@ -160,8 +160,8 @@ class DashboardViewModel(
         refreshContentForSelectedDate()
     }
 
-    fun onPreviousWeekClicked() {
-        val newDate = _uiState.value.selectedDate.minusWeeks(1)
+    fun onPreviousDayClicked() {
+        val newDate = _uiState.value.selectedDate.minusDays(1)
         _uiState.update {
             it.copy(
                 selectedDate = newDate,
@@ -171,8 +171,8 @@ class DashboardViewModel(
         refreshContentForSelectedDate()
     }
 
-    fun onNextWeekClicked() {
-        val newDate = _uiState.value.selectedDate.plusWeeks(1)
+    fun onNextDayClicked() {
+        val newDate = _uiState.value.selectedDate.plusDays(1)
         _uiState.update {
             it.copy(
                 selectedDate = newDate,

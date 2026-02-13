@@ -32,9 +32,12 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +48,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.uteacher.attendancetracker.data.repository.SessionFormat
 import com.uteacher.attendancetracker.domain.model.FabPosition
+import com.uteacher.attendancetracker.ui.navigation.ActionBarPrimaryAction
 import com.uteacher.attendancetracker.ui.theme.component.AttenoteButton
 import com.uteacher.attendancetracker.ui.theme.component.AttenoteSectionCard
 import com.uteacher.attendancetracker.ui.theme.component.AttenoteTextField
@@ -54,11 +58,12 @@ import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun SettingsScreen(
-    onNavigateBack: () -> Unit,
+    onSetActionBarPrimaryAction: (ActionBarPrimaryAction?) -> Unit,
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val onSaveClick = remember(viewModel) { { viewModel.onSaveProfileClicked() } }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -94,6 +99,19 @@ fun SettingsScreen(
             delay(3000)
             viewModel.onErrorDismissed()
         }
+    }
+
+    SideEffect {
+        onSetActionBarPrimaryAction(
+            ActionBarPrimaryAction(
+                title = if (uiState.isLoading) "Saving..." else "Save",
+                enabled = !uiState.isLoading,
+                onClick = onSaveClick
+            )
+        )
+    }
+    DisposableEffect(onSetActionBarPrimaryAction) {
+        onDispose { onSetActionBarPrimaryAction(null) }
     }
 
     Column(
@@ -197,13 +215,6 @@ fun SettingsScreen(
                         enabled = uiState.canEnableBiometric && !uiState.isLoading
                     )
                 }
-
-                AttenoteButton(
-                    text = "Save Profile",
-                    onClick = viewModel::onSaveProfileClicked,
-                    enabled = !uiState.isLoading,
-                    modifier = Modifier.fillMaxWidth()
-                )
 
                 if (uiState.profileSaveSuccess) {
                     Text(

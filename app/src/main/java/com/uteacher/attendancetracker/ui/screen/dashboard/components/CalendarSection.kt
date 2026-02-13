@@ -16,8 +16,8 @@ fun CalendarSection(
     datesWithContent: Set<LocalDate>,
     weekRange: List<LocalDate>,
     onDateSelected: (LocalDate) -> Unit,
-    onPreviousWeek: () -> Unit,
-    onNextWeek: () -> Unit,
+    onPreviousDay: () -> Unit,
+    onNextDay: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onToggleExpanded: () -> Unit,
@@ -45,8 +45,8 @@ fun CalendarSection(
                 weekRange = weekRange,
                 datesWithContent = datesWithContent,
                 onDateSelected = onDateSelected,
-                onPreviousWeek = onPreviousWeek,
-                onNextWeek = onNextWeek,
+                onPreviousDay = onPreviousDay,
+                onNextDay = onNextDay,
                 onExpand = onToggleExpanded
             )
         }

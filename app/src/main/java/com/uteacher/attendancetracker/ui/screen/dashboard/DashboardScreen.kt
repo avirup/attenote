@@ -211,8 +211,8 @@ fun DashboardScreen(
                 datesWithContent = uiState.datesWithClasses + uiState.datesWithNotes,
                 weekRange = viewModel.getWeekRange(uiState.selectedDate),
                 onDateSelected = viewModel::onDateSelected,
-                onPreviousWeek = viewModel::onPreviousWeekClicked,
-                onNextWeek = viewModel::onNextWeekClicked,
+                onPreviousDay = viewModel::onPreviousDayClicked,
+                onNextDay = viewModel::onNextDayClicked,
                 onPreviousMonth = viewModel::onPreviousMonthClicked,
                 onNextMonth = viewModel::onNextMonthClicked,
                 onToggleExpanded = viewModel::onToggleCalendar

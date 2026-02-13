@@ -218,7 +218,7 @@ fun AppNavHost(
                 onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
             )
             SettingsScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onSetActionBarPrimaryAction = onActionBarPrimaryActionChanged
             )
         }
     }

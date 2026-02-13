@@ -62,7 +62,13 @@ fun NoteCard(
                 }
 
                 Text(
-                    text = "Updated ${formatRelativeDate(note.updatedAt)}",
+                    text = "Created on ${formatRelativeDate(note.createdAt)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = "Updated on ${formatRelativeDate(note.updatedAt)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
