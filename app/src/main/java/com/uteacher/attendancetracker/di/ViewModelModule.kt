@@ -4,6 +4,7 @@ import com.uteacher.attendancetracker.ui.screen.auth.AuthGateViewModel
 import com.uteacher.attendancetracker.ui.screen.createclass.CreateClassViewModel
 import com.uteacher.attendancetracker.ui.screen.dashboard.DashboardViewModel
 import com.uteacher.attendancetracker.ui.screen.attendance.TakeAttendanceViewModel
+import com.uteacher.attendancetracker.ui.screen.notes.AddNoteViewModel
 import com.uteacher.attendancetracker.ui.screen.manageclass.EditClassViewModel
 import com.uteacher.attendancetracker.ui.screen.manageclass.ManageClassListViewModel
 import com.uteacher.attendancetracker.ui.screen.managestudents.ManageStudentsViewModel
@@ -29,6 +30,13 @@ val viewModelModule = module {
             classRepository = get(),
             studentRepository = get(),
             attendanceRepository = get()
+        )
+    }
+    viewModel { params ->
+        AddNoteViewModel(
+            noteId = params.get(),
+            dateString = params.get(),
+            noteRepository = get()
         )
     }
     viewModel { params ->

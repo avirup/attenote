@@ -81,4 +81,6 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.biometric)
     implementation(libs.kotlin.csv.jvm)
+    implementation(libs.coil.compose)
+    implementation(libs.rich.editor.compose)
 }
