@@ -91,11 +91,20 @@ class DailySummaryViewModel(
     }
 
     private fun buildPreviewLine(content: String): String {
-        val preview = content
+        val plainText = content
+            .replace(HTML_TAG_REGEX, " ")
+            .replace(MULTI_SPACE_REGEX, " ")
+            .trim()
+        val preview = plainText
             .lineSequence()
             .map(String::trim)
             .firstOrNull { it.isNotBlank() }
             .orEmpty()
-        return preview.take(120)
+        return preview.take(100)
+    }
+
+    private companion object {
+        private val HTML_TAG_REGEX = Regex("<[^>]+>")
+        private val MULTI_SPACE_REGEX = Regex("\\s+")
     }
 }

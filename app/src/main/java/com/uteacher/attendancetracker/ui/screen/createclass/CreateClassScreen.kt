@@ -107,6 +107,11 @@ fun CreateClassScreen(
                         enabled = !uiState.isLoading,
                         errorMessage = uiState.instituteError
                     )
+                    Text(
+                        text = "Institute is auto-filled from settings and can be edited",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
                     AttenoteTextField(
                         value = uiState.session,

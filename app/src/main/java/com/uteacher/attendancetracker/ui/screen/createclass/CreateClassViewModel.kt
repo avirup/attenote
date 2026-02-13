@@ -26,13 +26,34 @@ class CreateClassViewModel(
     val uiState: StateFlow<CreateClassUiState> = _uiState.asStateFlow()
 
     init {
-        loadSessionFormatPreference()
+        loadInitialFormDefaults()
     }
 
-    private fun loadSessionFormatPreference() {
+    private fun loadInitialFormDefaults() {
         viewModelScope.launch {
-            val format = settingsRepo.sessionFormat.first()
-            _uiState.update { it.copy(session = defaultSessionFor(format)) }
+            val sessionFormat = settingsRepo.sessionFormat.first()
+            val instituteFromSettings = settingsRepo.institute.first()
+            _uiState.update { state ->
+                val normalizedInstitute = instituteFromSettings.trim()
+                val nextInstitute = if (state.instituteName.isBlank()) {
+                    normalizedInstitute
+                } else {
+                    state.instituteName
+                }
+                state.copy(
+                    instituteName = nextInstitute,
+                    session = if (state.session.isBlank()) {
+                        defaultSessionFor(sessionFormat)
+                    } else {
+                        state.session
+                    },
+                    className = if (state.classNameManuallyEdited) {
+                        state.className
+                    } else {
+                        generateClassName(state.subject, nextInstitute)
+                    }
+                )
+            }
         }
     }
 

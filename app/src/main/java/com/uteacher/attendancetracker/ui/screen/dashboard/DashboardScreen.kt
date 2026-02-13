@@ -22,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -75,7 +76,7 @@ fun DashboardScreen(
     var calendarAccumulatedDrag by remember { mutableFloatStateOf(0f) }
     var calendarDragOffsetPx by remember { mutableFloatStateOf(0f) }
 
-    DisposableEffect(onSetActionBarPrimaryAction) {
+    SideEffect {
         onSetActionBarPrimaryAction(
             ActionBarPrimaryAction(
                 title = "Summary",
@@ -84,6 +85,8 @@ fun DashboardScreen(
                 onClick = onNavigateToDailySummary
             )
         )
+    }
+    DisposableEffect(onSetActionBarPrimaryAction) {
         onDispose { onSetActionBarPrimaryAction(null) }
     }
 
