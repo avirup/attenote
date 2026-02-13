@@ -14,7 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -28,6 +28,7 @@ import androidx.navigation.toRoute
 import com.uteacher.attendancetracker.ui.screen.auth.AuthGateScreen
 import com.uteacher.attendancetracker.ui.screen.createclass.CreateClassScreen
 import com.uteacher.attendancetracker.ui.screen.dashboard.DashboardScreen
+import com.uteacher.attendancetracker.ui.screen.dailysummary.DailySummaryScreen
 import com.uteacher.attendancetracker.ui.screen.attendance.TakeAttendanceScreen
 import com.uteacher.attendancetracker.ui.screen.manageclass.EditClassScreen
 import com.uteacher.attendancetracker.ui.screen.manageclass.ManageClassListScreen
@@ -129,10 +130,30 @@ fun AppNavHost(
                 onNavigateToSettings = {
                     navController.navigate(AppRoute.Settings)
                 },
+                onNavigateToDailySummary = {
+                    navController.navigate(AppRoute.DailySummary)
+                },
                 onNavigateToTakeAttendance = { classId, scheduleId, date ->
                     navController.navigate(AppRoute.TakeAttendance(classId, scheduleId, date))
                 },
                 onNavigateToAddNote = { date, noteId ->
+                    navController.navigate(AppRoute.AddNote(date = date, noteId = noteId))
+                },
+                onSetActionBarPrimaryAction = onActionBarPrimaryActionChanged
+            )
+        }
+
+        composable<AppRoute.DailySummary> {
+            ConfigureActionBar(
+                route = AppRoute.DailySummary,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
+            DailySummaryScreen(
+                onEditAttendance = { classId, scheduleId, date ->
+                    navController.navigate(AppRoute.TakeAttendance(classId, scheduleId, date))
+                },
+                onEditNote = { date, noteId ->
                     navController.navigate(AppRoute.AddNote(date = date, noteId = noteId))
                 }
             )
@@ -283,9 +304,10 @@ private fun ConfigureActionBar(
     onActionBarPrimaryActionChanged: (ActionBarPrimaryAction?) -> Unit
 ) {
     val policy = route.actionBarPolicy()
-    SideEffect {
+    DisposableEffect(route) {
         onActionBarChanged(policy.title, policy.showBack)
         onActionBarPrimaryActionChanged(null)
+        onDispose { }
     }
 }
 

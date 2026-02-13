@@ -7,6 +7,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
 interface AttendanceRepository {
+    fun observeAllSessions(): Flow<List<AttendanceSession>>
     fun observeSessionsForClass(classId: Long): Flow<List<AttendanceSession>>
 
     suspend fun getSessionById(sessionId: Long): AttendanceSession?

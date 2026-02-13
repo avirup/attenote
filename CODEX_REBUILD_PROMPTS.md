@@ -10547,3 +10547,71 @@ Manual checks failed:
 Blockers:
 Next step allowed: Yes/No
 ```
+
+## Prompt 16 - Daily Summary Timeline (Notes + Attendance)
+
+```text
+You are working in the existing Attenote Android project. Implement a new "Daily Summary" screen that shows notes and attendance together in a minimal newest-first list.
+
+Scope:
+1. Add a new typed route:
+   - `AppRoute.DailySummary`
+   - ActionBar title: `Daily Summary`
+   - Back enabled.
+
+2. Add dashboard ActionBar right-side icon navigation:
+   - Show an icon button on Dashboard ActionBar right side.
+   - Tapping icon navigates to `DailySummary`.
+   - Keep existing dashboard branding in title area unchanged.
+
+3. Build Daily Summary screen:
+   - Minimal list UI.
+   - Combine Notes and Attendance entries in one list.
+   - Sort newest first.
+   - Attendance item must show:
+     - class name
+     - students present count
+     - students absent count
+     - `Edit` action that opens existing attendance editor flow.
+   - Note item must show:
+     - title
+     - one-line text preview
+     - `Edit` action that opens existing note editor flow.
+
+4. Data + ViewModel behavior:
+   - Use existing repositories and typed navigation.
+   - Add attendance observation support if needed for all sessions.
+   - Keep implementation reactive with Flow + ViewModel state.
+   - Handle empty state and load/error states.
+
+5. Keep architecture and style constraints:
+   - Compose + Material3 + Koin + Room.
+   - No raw route strings.
+   - Keep top ActionBar as global title/back surface.
+   - Keep system bars/nav buttons visible.
+
+Deliverables:
+- Updated routes/policy/nav host.
+- New summary screen + ui state + viewmodel.
+- Dashboard ActionBar icon wiring.
+- Any required DAO/repository additions.
+- Buildable project.
+```
+
+### Git Commit Message (Step 16)
+`feat(step-16): add daily summary timeline with notes and attendance edit shortcuts`
+
+Device Gate Commands:
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell monkey -p com.uteacher.attendancetracker -c android.intent.category.LAUNCHER 1
+
+Manual Verification:
+1. Open Dashboard and verify right-side summary icon appears in ActionBar.
+2. Tap icon and verify navigation to Daily Summary screen.
+3. Verify list shows mixed notes and attendance newest first.
+4. Verify attendance row shows class name, present count, absent count, and Edit action.
+5. Verify note row shows title, one-line preview, and Edit action.
+6. Tap Edit on attendance and verify Take Attendance opens with correct class/schedule/date.
+7. Tap Edit on note and verify Add/Edit Note opens with correct note/date.
+8. Verify back navigation from Daily Summary returns to Dashboard.

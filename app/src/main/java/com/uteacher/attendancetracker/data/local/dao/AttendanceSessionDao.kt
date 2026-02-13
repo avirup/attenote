@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.Flow
 @JvmSuppressWildcards
 interface AttendanceSessionDao {
 
+    @Query("SELECT * FROM attendance_sessions ORDER BY date DESC, sessionId DESC")
+    fun observeAllSessions(): Flow<List<AttendanceSessionEntity>>
+
     @Query("SELECT * FROM attendance_sessions WHERE classId = :classId ORDER BY date DESC")
     fun observeSessionsForClass(classId: Long): Flow<List<AttendanceSessionEntity>>
 

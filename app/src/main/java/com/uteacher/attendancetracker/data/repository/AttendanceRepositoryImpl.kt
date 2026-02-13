@@ -21,6 +21,9 @@ class AttendanceRepositoryImpl(
     private val db: AppDatabase
 ) : AttendanceRepository {
 
+    override fun observeAllSessions(): Flow<List<AttendanceSession>> =
+        sessionDao.observeAllSessions().map { it.toDomain() }
+
     override fun observeSessionsForClass(classId: Long): Flow<List<AttendanceSession>> =
         sessionDao.observeSessionsForClass(classId).map { it.toDomain() }
 

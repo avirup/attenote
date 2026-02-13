@@ -165,6 +165,9 @@ class MainActivity : FragmentActivity() {
         val action = actionBarPrimaryAction
         if (action != null) {
             menu.add(Menu.NONE, MENU_ITEM_PRIMARY_ACTION, Menu.NONE, action.title).apply {
+                action.iconResId?.let { setIcon(it) }
+                contentDescription = action.contentDescription
+                tooltipText = action.contentDescription
                 setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
                 isEnabled = action.enabled
             }
@@ -261,6 +264,8 @@ class MainActivity : FragmentActivity() {
         val previous = actionBarPrimaryAction
         if (
             previous?.title == action?.title &&
+            previous?.iconResId == action?.iconResId &&
+            previous?.contentDescription == action?.contentDescription &&
             previous?.enabled == action?.enabled &&
             previous?.onClick === action?.onClick
         ) {

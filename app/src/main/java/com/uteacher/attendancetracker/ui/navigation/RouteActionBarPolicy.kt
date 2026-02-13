@@ -10,6 +10,7 @@ fun AppRoute.actionBarPolicy(): ActionBarPolicy = when (this) {
     AppRoute.AuthGate -> ActionBarPolicy(title = "Auth Gate", showBack = false)
     AppRoute.Setup -> ActionBarPolicy(title = "Setup", showBack = false)
     AppRoute.Dashboard -> ActionBarPolicy(title = "Dashboard", showBack = false)
+    AppRoute.DailySummary -> ActionBarPolicy(title = "Daily Summary", showBack = true)
     AppRoute.CreateClass -> ActionBarPolicy(title = "Create Class", showBack = true)
     AppRoute.ManageClassList -> ActionBarPolicy(title = "Manage Classes", showBack = true)
     is AppRoute.EditClass -> ActionBarPolicy(title = "Edit Class", showBack = true)

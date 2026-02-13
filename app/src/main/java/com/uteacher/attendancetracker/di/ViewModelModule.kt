@@ -3,6 +3,7 @@ package com.uteacher.attendancetracker.di
 import com.uteacher.attendancetracker.ui.screen.auth.AuthGateViewModel
 import com.uteacher.attendancetracker.ui.screen.createclass.CreateClassViewModel
 import com.uteacher.attendancetracker.ui.screen.dashboard.DashboardViewModel
+import com.uteacher.attendancetracker.ui.screen.dailysummary.DailySummaryViewModel
 import com.uteacher.attendancetracker.ui.screen.attendance.TakeAttendanceViewModel
 import com.uteacher.attendancetracker.ui.screen.notes.AddNoteViewModel
 import com.uteacher.attendancetracker.ui.screen.manageclass.EditClassViewModel
@@ -21,6 +22,7 @@ val viewModelModule = module {
     viewModelOf(::SetupViewModel)
     viewModelOf(::AuthGateViewModel)
     viewModelOf(::DashboardViewModel)
+    viewModelOf(::DailySummaryViewModel)
     viewModelOf(::CreateClassViewModel)
     viewModelOf(::ManageClassListViewModel)
     viewModelOf(::ManageStudentsViewModel)

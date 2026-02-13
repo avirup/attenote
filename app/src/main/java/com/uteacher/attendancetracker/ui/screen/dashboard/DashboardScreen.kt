@@ -20,6 +20,7 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,7 +36,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import com.uteacher.attendancetracker.R
 import com.uteacher.attendancetracker.domain.model.FabPosition
+import com.uteacher.attendancetracker.ui.navigation.ActionBarPrimaryAction
 import com.uteacher.attendancetracker.ui.screen.dashboard.components.CalendarSection
 import com.uteacher.attendancetracker.ui.screen.dashboard.components.HamburgerFabMenu
 import com.uteacher.attendancetracker.ui.screen.dashboard.components.NoteCard
@@ -53,8 +56,10 @@ fun DashboardScreen(
     onNavigateToManageClassList: () -> Unit,
     onNavigateToManageStudents: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToDailySummary: () -> Unit,
     onNavigateToTakeAttendance: (classId: Long, scheduleId: Long, date: String) -> Unit,
     onNavigateToAddNote: (date: String, noteId: Long) -> Unit,
+    onSetActionBarPrimaryAction: (ActionBarPrimaryAction?) -> Unit,
     viewModel: DashboardViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -69,6 +74,18 @@ fun DashboardScreen(
 
     var calendarAccumulatedDrag by remember { mutableFloatStateOf(0f) }
     var calendarDragOffsetPx by remember { mutableFloatStateOf(0f) }
+
+    DisposableEffect(onSetActionBarPrimaryAction) {
+        onSetActionBarPrimaryAction(
+            ActionBarPrimaryAction(
+                title = "Summary",
+                iconResId = R.drawable.ic_daily_summary_24,
+                contentDescription = "Open summary",
+                onClick = onNavigateToDailySummary
+            )
+        )
+        onDispose { onSetActionBarPrimaryAction(null) }
+    }
 
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress) {

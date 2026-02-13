@@ -17,6 +17,9 @@ sealed interface AppRoute {
     data object Dashboard : AppRoute
 
     @Serializable
+    data object DailySummary : AppRoute
+
+    @Serializable
     data object Setup : AppRoute
 
     @Serializable
