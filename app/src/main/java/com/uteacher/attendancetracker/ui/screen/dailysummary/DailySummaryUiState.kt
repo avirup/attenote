@@ -5,6 +5,7 @@ import java.time.LocalDate
 data class DailySummaryUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
+    val searchQuery: String = "",
     val items: List<DailySummaryItem> = emptyList()
 )
 
