@@ -1,10 +1,14 @@
 package com.uteacher.attendancetracker
 
+import android.app.ActionBar
 import android.app.AlertDialog
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
+import android.view.ViewGroup
+import android.widget.ImageView
 import androidx.biometric.BiometricPrompt
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
@@ -37,6 +41,7 @@ import com.uteacher.attendancetracker.util.BiometricHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
+import kotlin.math.roundToInt
 
 class MainActivity : FragmentActivity() {
 
@@ -50,7 +55,9 @@ class MainActivity : FragmentActivity() {
     private var navigateUpHandler: (() -> Boolean)? = null
     private var lastActionBarTitle: String? = null
     private var lastActionBarBackState: Boolean? = null
+    private var lastDashboardBrandingState: Boolean? = null
     private var actionBarPrimaryAction: ActionBarPrimaryAction? = null
+    private var dashboardWordmarkView: ImageView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -205,14 +212,48 @@ class MainActivity : FragmentActivity() {
 
     private fun applyActionBarState(title: String, showBack: Boolean) {
         val bar = actionBar ?: return
-        if (lastActionBarTitle != title) {
+        ensureActionBarBranding(bar)
+
+        val isDashboard = title == DASHBOARD_ACTION_BAR_TITLE
+        if (lastDashboardBrandingState != isDashboard) {
+            bar.setDisplayShowCustomEnabled(isDashboard)
+            bar.setDisplayShowTitleEnabled(!isDashboard)
+            if (isDashboard) {
+                bar.customView = dashboardWordmarkView ?: createDashboardWordmarkView().also {
+                    dashboardWordmarkView = it
+                }
+            }
+            lastDashboardBrandingState = isDashboard
+        }
+
+        if (!isDashboard && lastActionBarTitle != title) {
             bar.title = title
             lastActionBarTitle = title
         }
         if (lastActionBarBackState != showBack) {
             bar.setDisplayHomeAsUpEnabled(showBack)
-            bar.setDisplayShowHomeEnabled(showBack)
             lastActionBarBackState = showBack
+        }
+    }
+
+    private fun ensureActionBarBranding(bar: ActionBar) {
+        bar.setLogo(R.drawable.attenote_title_icon)
+        bar.setDisplayUseLogoEnabled(true)
+        bar.setDisplayShowHomeEnabled(true)
+    }
+
+    private fun createDashboardWordmarkView(): ImageView {
+        val wordmarkHeightPx = (20f * resources.displayMetrics.density).roundToInt()
+        return ImageView(this).apply {
+            setImageResource(R.drawable.attenote_wordmark_title)
+            contentDescription = "attenote"
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_START
+            layoutParams = ActionBar.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                wordmarkHeightPx,
+                Gravity.START or Gravity.CENTER_VERTICAL
+            )
         }
     }
 
@@ -232,5 +273,6 @@ class MainActivity : FragmentActivity() {
     private companion object {
         private const val STARTUP_TAG = "StartupGate"
         private const val MENU_ITEM_PRIMARY_ACTION = 1001
+        private const val DASHBOARD_ACTION_BAR_TITLE = "Dashboard"
     }
 }
