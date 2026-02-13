@@ -148,13 +148,21 @@ fun AddNoteScreen(
             ) {
                 RichTextEditor(
                     state = uiState.richTextState,
+                    singleLine = false,
+                    maxLines = Int.MAX_VALUE,
+                    minLines = 10,
+                    maxLength = Int.MAX_VALUE,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(300.dp)
                 )
                 RichTextToolbar(
                     state = uiState.richTextState,
-                    enabled = !uiState.isSaving
+                    enabled = !uiState.isSaving,
+                    canUndo = uiState.canUndo,
+                    canRedo = uiState.canRedo,
+                    onUndo = viewModel::onUndoClicked,
+                    onRedo = viewModel::onRedoClicked
                 )
             }
         }

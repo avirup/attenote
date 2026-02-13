@@ -31,8 +31,12 @@ class AddNoteViewModel(
     private var baselineHtml: String = ""
     private var baselineDate: LocalDate = LocalDate.now()
     private var baselineCreatedAt: LocalDate = LocalDate.now()
+    private val undoHistory = ArrayDeque<String>()
+    private val redoHistory = ArrayDeque<String>()
+    private var lastRecordedHtml: String = ""
 
     init {
+        lastRecordedHtml = _uiState.value.richTextState.toHtml()
         loadNote()
     }
 
@@ -63,6 +67,7 @@ class AddNoteViewModel(
                     val (note, media) = noteWithMedia
                     val richTextState = _uiState.value.richTextState
                     richTextState.setHtml(note.content)
+                    resetHistory(note.content)
 
                     baselineTitle = note.title
                     baselineHtml = note.content
@@ -77,6 +82,8 @@ class AddNoteViewModel(
                             richTextState = richTextState,
                             savedMedia = media,
                             isLoading = false,
+                            canUndo = false,
+                            canRedo = false,
                             hasUnsavedChanges = false,
                             error = null
                         )
@@ -86,12 +93,15 @@ class AddNoteViewModel(
                     baselineHtml = ""
                     baselineDate = initialDate
                     baselineCreatedAt = LocalDate.now()
+                    resetHistory(_uiState.value.richTextState.toHtml())
 
                     _uiState.update {
                         it.copy(
                             initialDate = initialDate,
                             date = initialDate,
                             isLoading = false,
+                            canUndo = false,
+                            canRedo = false,
                             hasUnsavedChanges = false,
                             error = null
                         )
@@ -121,8 +131,63 @@ class AddNoteViewModel(
     fun onRichTextChanged() {
         _uiState.update { state ->
             val html = state.richTextState.toHtml()
+            if (html != lastRecordedHtml) {
+                pushUndoState(lastRecordedHtml)
+                redoHistory.clear()
+                lastRecordedHtml = html
+            }
             state.copy(
-                hasUnsavedChanges = detectChanges(state.title, html, state.date, state.pendingMedia)
+                hasUnsavedChanges = detectChanges(state.title, html, state.date, state.pendingMedia),
+                canUndo = undoHistory.isNotEmpty(),
+                canRedo = redoHistory.isNotEmpty()
+            )
+        }
+    }
+
+    fun onUndoClicked() {
+        val state = _uiState.value
+        if (undoHistory.isEmpty()) return
+
+        val currentHtml = state.richTextState.toHtml()
+        val previousHtml = undoHistory.removeLast()
+        pushRedoState(currentHtml)
+        state.richTextState.setHtml(previousHtml)
+        lastRecordedHtml = previousHtml
+
+        _uiState.update {
+            it.copy(
+                hasUnsavedChanges = detectChanges(
+                    title = it.title,
+                    html = previousHtml,
+                    date = it.date,
+                    pendingMedia = it.pendingMedia
+                ),
+                canUndo = undoHistory.isNotEmpty(),
+                canRedo = redoHistory.isNotEmpty()
+            )
+        }
+    }
+
+    fun onRedoClicked() {
+        val state = _uiState.value
+        if (redoHistory.isEmpty()) return
+
+        val currentHtml = state.richTextState.toHtml()
+        val nextHtml = redoHistory.removeLast()
+        pushUndoState(currentHtml)
+        state.richTextState.setHtml(nextHtml)
+        lastRecordedHtml = nextHtml
+
+        _uiState.update {
+            it.copy(
+                hasUnsavedChanges = detectChanges(
+                    title = it.title,
+                    html = nextHtml,
+                    date = it.date,
+                    pendingMedia = it.pendingMedia
+                ),
+                canUndo = undoHistory.isNotEmpty(),
+                canRedo = redoHistory.isNotEmpty()
             )
         }
     }
@@ -316,5 +381,31 @@ class AddNoteViewModel(
             .replace("&nbsp;", " ")
             .trim()
         return plain.isNotBlank()
+    }
+
+    private fun resetHistory(initialHtml: String) {
+        undoHistory.clear()
+        redoHistory.clear()
+        lastRecordedHtml = initialHtml
+    }
+
+    private fun pushUndoState(html: String) {
+        if (undoHistory.lastOrNull() == html) return
+        undoHistory.addLast(html)
+        if (undoHistory.size > MAX_HISTORY_ENTRIES) {
+            undoHistory.removeFirst()
+        }
+    }
+
+    private fun pushRedoState(html: String) {
+        if (redoHistory.lastOrNull() == html) return
+        redoHistory.addLast(html)
+        if (redoHistory.size > MAX_HISTORY_ENTRIES) {
+            redoHistory.removeFirst()
+        }
+    }
+
+    private companion object {
+        const val MAX_HISTORY_ENTRIES = 100
     }
 }
