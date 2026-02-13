@@ -168,21 +168,25 @@ fun TakeAttendanceScreen(
 
                     item {
                         AttenoteSectionCard(title = "Lesson Notes (optional)") {
-                            OutlinedTextField(
-                                value = uiState.lessonNotes,
-                                onValueChange = viewModel::onLessonNotesChanged,
-                                label = { Text("Lesson notes") },
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = !uiState.isSaving,
-                                minLines = 4,
-                                maxLines = 8
-                            )
-                            Text(
-                                text = "Quick notes about today's lesson (plain text)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = uiState.lessonNotes,
+                                    onValueChange = viewModel::onLessonNotesChanged,
+                                    label = { Text("Lesson notes") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !uiState.isSaving,
+                                    minLines = 4,
+                                    maxLines = 8
+                                )
+                                Text(
+                                    text = "Quick notes about today's lesson (plain text)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
 
