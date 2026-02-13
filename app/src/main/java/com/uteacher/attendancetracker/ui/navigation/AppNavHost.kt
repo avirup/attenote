@@ -1,5 +1,7 @@
 package com.uteacher.attendancetracker.ui.navigation
 
+import android.content.Context
+import android.util.TypedValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -10,11 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -23,6 +27,8 @@ import androidx.navigation.toRoute
 import com.uteacher.attendancetracker.ui.screen.auth.AuthGateScreen
 import com.uteacher.attendancetracker.ui.screen.createclass.CreateClassScreen
 import com.uteacher.attendancetracker.ui.screen.dashboard.DashboardScreen
+import com.uteacher.attendancetracker.ui.screen.manageclass.EditClassScreen
+import com.uteacher.attendancetracker.ui.screen.manageclass.ManageClassListScreen
 import com.uteacher.attendancetracker.ui.screen.setup.SetupScreen
 import com.uteacher.attendancetracker.ui.screen.splash.SplashScreen
 
@@ -33,9 +39,19 @@ fun AppNavHost(
     onActionBarChanged: (title: String, showBack: Boolean) -> Unit,
     onActionBarPrimaryActionChanged: (ActionBarPrimaryAction?) -> Unit
 ) {
+    val context = LocalContext.current
+    val topChromePadding = remember(context) {
+        context.pxToDp(context.resolveStatusBarHeightPx() + context.resolveActionBarHeightPx())
+    }
+    val bottomChromePadding = remember(context) {
+        context.pxToDp(context.resolveNavigationBarHeightPx())
+    }
     NavHost(
         navController = navController,
-        startDestination = startDestination
+        startDestination = startDestination,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = topChromePadding, bottom = bottomChromePadding)
     ) {
         composable<AppRoute.Splash> {
             ConfigureActionBar(
@@ -134,7 +150,11 @@ fun AppNavHost(
                 onActionBarChanged = onActionBarChanged,
                 onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
             )
-            PlaceholderScaffold(title = "Manage Classes", readinessStep = "09")
+            ManageClassListScreen(
+                onNavigateToEditClass = { classId ->
+                    navController.navigate(AppRoute.EditClass(classId))
+                }
+            )
         }
 
         composable<AppRoute.EditClass> { backStackEntry ->
@@ -144,11 +164,7 @@ fun AppNavHost(
                 onActionBarChanged = onActionBarChanged,
                 onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
             )
-            PlaceholderScaffold(
-                title = "Edit Class",
-                readinessStep = "09",
-                routeParameters = listOf("classId" to route.classId.toString())
-            )
+            EditClassScreen(classId = route.classId)
         }
 
         composable<AppRoute.ManageStudents> {
@@ -206,6 +222,35 @@ fun AppNavHost(
     }
 }
 
+private fun Context.resolveStatusBarHeightPx(): Int {
+    return resolveAndroidDimensionPx("status_bar_height")
+}
+
+private fun Context.resolveNavigationBarHeightPx(): Int {
+    return resolveAndroidDimensionPx("navigation_bar_height")
+}
+
+private fun Context.resolveAndroidDimensionPx(name: String): Int {
+    val resourceId = resources.getIdentifier(name, "dimen", "android")
+    if (resourceId == 0) {
+        return 0
+    }
+    return resources.getDimensionPixelSize(resourceId)
+}
+
+private fun Context.resolveActionBarHeightPx(): Int {
+    val typedValue = TypedValue()
+    val hasActionBarSize = theme.resolveAttribute(android.R.attr.actionBarSize, typedValue, true)
+    if (!hasActionBarSize) {
+        return 0
+    }
+    return TypedValue.complexToDimensionPixelSize(typedValue.data, resources.displayMetrics)
+}
+
+private fun Context.pxToDp(px: Int): Dp {
+    return (px / resources.displayMetrics.density).dp
+}
+
 @Composable
 private fun ConfigureActionBar(
     route: AppRoute,
@@ -226,40 +271,37 @@ private fun PlaceholderScaffold(
     routeParameters: List<Pair<String, String>> = emptyList(),
     actions: @Composable ColumnScope.() -> Unit = {}
 ) {
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "$title Placeholder",
-                style = MaterialTheme.typography.titleLarge
-            )
-            Text(
-                text = "Ready for implementation in Step $readinessStep",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (routeParameters.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Route Parameters:",
-                    style = MaterialTheme.typography.labelMedium
-                )
-                routeParameters.forEach { (name, value) ->
-                    Text(
-                        text = "$name: $value",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "$title Placeholder",
+            style = MaterialTheme.typography.titleLarge
+        )
+        Text(
+            text = "Ready for implementation in Step $readinessStep",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (routeParameters.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
-            actions()
+            Text(
+                text = "Route Parameters:",
+                style = MaterialTheme.typography.labelMedium
+            )
+            routeParameters.forEach { (name, value) ->
+                Text(
+                    text = "$name: $value",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
+        Spacer(modifier = Modifier.height(8.dp))
+        actions()
     }
 }

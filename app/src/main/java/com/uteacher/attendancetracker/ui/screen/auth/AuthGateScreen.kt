@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,42 +55,38 @@ fun AuthGateScreen(
         }
     }
 
-    Scaffold { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentAlignment = Alignment.Center
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = "Lock",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Authentication Required",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                if (uiState.authState == AuthState.FAILURE || uiState.authState == AuthState.ERROR) {
-                    uiState.errorMessage?.let { message ->
-                        Text(
-                            text = message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 32.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    AttenoteButton(
-                        text = "Retry",
-                        onClick = viewModel::onRetryClicked
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = "Lock",
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Authentication Required",
+                style = MaterialTheme.typography.headlineSmall
+            )
+            if (uiState.authState == AuthState.FAILURE || uiState.authState == AuthState.ERROR) {
+                uiState.errorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
                     )
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                AttenoteButton(
+                    text = "Retry",
+                    onClick = viewModel::onRetryClicked
+                )
             }
         }
     }

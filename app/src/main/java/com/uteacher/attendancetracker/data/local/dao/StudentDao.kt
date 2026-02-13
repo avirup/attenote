@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.uteacher.attendancetracker.data.local.entity.StudentEntity
+import com.uteacher.attendancetracker.data.local.entity.StudentWithClassStatusEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -27,6 +28,26 @@ interface StudentDao {
         """
     )
     fun observeActiveStudentsForClass(classId: Long): Flow<List<StudentEntity>>
+
+    @Query(
+        """
+        SELECT
+            s.studentId,
+            s.name,
+            s.registrationNumber,
+            s.rollNumber,
+            s.email,
+            s.phone,
+            s.isActive,
+            s.createdAt,
+            cs.isActiveInClass AS isActiveInClass
+        FROM students s
+        INNER JOIN class_student_cross_ref cs ON s.studentId = cs.studentId
+        WHERE cs.classId = :classId AND s.isActive = 1
+        ORDER BY s.name ASC
+        """
+    )
+    fun observeStudentsForClass(classId: Long): Flow<List<StudentWithClassStatusEntity>>
 
     @Query("SELECT * FROM students WHERE studentId = :id")
     suspend fun getStudentById(id: Long): StudentEntity?

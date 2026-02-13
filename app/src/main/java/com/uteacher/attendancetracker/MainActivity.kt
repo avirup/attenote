@@ -3,27 +3,23 @@ package com.uteacher.attendancetracker
 import android.app.AlertDialog
 import android.os.Bundle
 import android.util.Log
-import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
 import androidx.biometric.BiometricPrompt
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
@@ -48,8 +44,6 @@ class MainActivity : FragmentActivity() {
 
     private var showContent by mutableStateOf(false)
     private var startDestination: AppRoute? by mutableStateOf(null)
-    private var actionBarInsetPx by mutableIntStateOf(0)
-    private var navigationBarInsetPx by mutableIntStateOf(0)
 
     private var navigateUpHandler: (() -> Boolean)? = null
     private var lastActionBarTitle: String? = null
@@ -60,8 +54,6 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, true)
         applyActionBarState(title = "Splash", showBack = false)
-        actionBarInsetPx = resolveTopChromeInsetPx()
-        navigationBarInsetPx = resolveBottomNavigationInsetPx()
 
         lifecycleScope.launch {
             val isSetupComplete = settingsRepo.isSetupComplete.first()
@@ -103,8 +95,6 @@ class MainActivity : FragmentActivity() {
 
         setContent {
             AttenoteTheme {
-                val actionBarInsetDp = with(LocalDensity.current) { actionBarInsetPx.toDp() }
-                val navigationBarInsetDp = with(LocalDensity.current) { navigationBarInsetPx.toDp() }
                 if (showContent && startDestination != null) {
                     val context = LocalContext.current
                     val navController = remember(startDestination) {
@@ -118,10 +108,7 @@ class MainActivity : FragmentActivity() {
                         onDispose { navigateUpHandler = null }
                     }
                     Surface(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = actionBarInsetDp)
-                            .padding(bottom = navigationBarInsetDp),
+                        modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
                         AppNavHost(
@@ -137,10 +124,7 @@ class MainActivity : FragmentActivity() {
                     }
                 } else {
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = actionBarInsetDp)
-                            .padding(bottom = navigationBarInsetDp),
+                        modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
@@ -245,33 +229,5 @@ class MainActivity : FragmentActivity() {
     private companion object {
         private const val STARTUP_TAG = "StartupGate"
         private const val MENU_ITEM_PRIMARY_ACTION = 1001
-    }
-
-    private fun resolveTopChromeInsetPx(): Int {
-        val outValue = TypedValue()
-        val resolved = theme.resolveAttribute(android.R.attr.actionBarSize, outValue, true)
-        val actionBarHeight = if (resolved) {
-            TypedValue.complexToDimensionPixelSize(outValue.data, resources.displayMetrics)
-        } else {
-            0
-        }
-
-        val statusBarResId = resources.getIdentifier("status_bar_height", "dimen", "android")
-        val statusBarHeight = if (statusBarResId > 0) {
-            resources.getDimensionPixelSize(statusBarResId)
-        } else {
-            0
-        }
-
-        return actionBarHeight + statusBarHeight
-    }
-
-    private fun resolveBottomNavigationInsetPx(): Int {
-        val navBarResId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
-        return if (navBarResId > 0) {
-            resources.getDimensionPixelSize(navBarResId)
-        } else {
-            0
-        }
     }
 }

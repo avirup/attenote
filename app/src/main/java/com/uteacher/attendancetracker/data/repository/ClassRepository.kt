@@ -3,6 +3,7 @@ package com.uteacher.attendancetracker.data.repository
 import com.uteacher.attendancetracker.data.repository.internal.RepositoryResult
 import com.uteacher.attendancetracker.domain.model.Class as DomainClass
 import com.uteacher.attendancetracker.domain.model.Schedule
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
 interface ClassRepository {
@@ -16,6 +17,11 @@ interface ClassRepository {
 
     suspend fun updateClass(class_: DomainClass): RepositoryResult<Unit>
     suspend fun updateClassOpenState(classId: Long, isOpen: Boolean): RepositoryResult<Unit>
+    suspend fun updateClassDateRange(
+        classId: Long,
+        startDate: LocalDate,
+        endDate: LocalDate
+    ): RepositoryResult<Unit>
 
     suspend fun deleteClass(classId: Long): RepositoryResult<Unit>
 }

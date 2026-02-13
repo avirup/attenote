@@ -9,6 +9,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import com.uteacher.attendancetracker.data.local.entity.AttendanceSessionEntity
 import com.uteacher.attendancetracker.data.local.entity.SessionWithRecords
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -41,4 +42,17 @@ interface AttendanceSessionDao {
 
     @Query("DELETE FROM attendance_sessions WHERE sessionId = :sessionId")
     suspend fun deleteSession(sessionId: Long): Int
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM attendance_sessions
+        WHERE classId = :classId
+        AND (date < :startDate OR date > :endDate)
+        """
+    )
+    suspend fun countSessionsOutsideDateRange(
+        classId: Long,
+        startDate: LocalDate,
+        endDate: LocalDate
+    ): Int
 }

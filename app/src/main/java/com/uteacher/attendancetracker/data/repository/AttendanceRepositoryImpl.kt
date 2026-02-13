@@ -92,4 +92,16 @@ class AttendanceRepositoryImpl(
             RepositoryResult.Error("Failed to delete session: ${e.message}")
         }
     }
+
+    override suspend fun countSessionsOutsideDateRange(
+        classId: Long,
+        startDate: LocalDate,
+        endDate: LocalDate
+    ): Int {
+        return sessionDao.countSessionsOutsideDateRange(
+            classId = classId,
+            startDate = startDate,
+            endDate = endDate
+        )
+    }
 }

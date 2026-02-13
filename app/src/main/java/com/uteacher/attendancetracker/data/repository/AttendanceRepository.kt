@@ -20,5 +20,11 @@ interface AttendanceRepository {
         records: List<AttendanceRecord>
     ): RepositoryResult<Long>
 
+    suspend fun countSessionsOutsideDateRange(
+        classId: Long,
+        startDate: LocalDate,
+        endDate: LocalDate
+    ): Int
+
     suspend fun deleteSession(sessionId: Long): RepositoryResult<Unit>
 }

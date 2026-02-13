@@ -27,8 +27,36 @@ class StudentRepositoryImpl(
     override fun observeActiveStudentsForClass(classId: Long): Flow<List<Student>> =
         studentDao.observeActiveStudentsForClass(classId).map { it.toDomain() }
 
+    override fun observeStudentsForClass(classId: Long): Flow<List<StudentWithClassStatus>> =
+        studentDao.observeStudentsForClass(classId).map { entities ->
+            entities.map { entity ->
+                StudentWithClassStatus(
+                    student = entity.student.toDomain(),
+                    isActiveInClass = entity.isActiveInClass
+                )
+            }
+        }
+
     override suspend fun getStudentById(studentId: Long): Student? =
         studentDao.getStudentById(studentId)?.toDomain()
+
+    override suspend fun findStudentByNameAndRegistration(
+        name: String,
+        registrationNumber: String
+    ): Student? {
+        val normalizedName = InputNormalizer.normalize(name)
+        val normalizedReg = InputNormalizer.normalize(registrationNumber)
+        return studentDao.getStudentByUniqueKey(normalizedName, normalizedReg)?.toDomain()
+    }
+
+    override suspend fun getStudentsForClass(classId: Long): List<StudentWithClassStatus> {
+        return studentDao.observeStudentsForClass(classId).first().map { entity ->
+            StudentWithClassStatus(
+                student = entity.student.toDomain(),
+                isActiveInClass = entity.isActiveInClass
+            )
+        }
+    }
 
     override suspend fun createStudent(student: Student): RepositoryResult<Long> {
         val normalizedStudent = student.normalizeForSave()
@@ -107,9 +135,7 @@ class StudentRepositoryImpl(
                         ClassStudentCrossRef(classId = classId, studentId = studentId)
                     )
 
-                    existingLink.isActiveInClass -> throw IllegalStateException(
-                        "Student already belongs to this class"
-                    )
+                    existingLink.isActiveInClass -> Unit
 
                     else -> crossRefDao.updateLink(existingLink.copy(isActiveInClass = true))
                 }

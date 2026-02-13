@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -69,30 +68,76 @@ fun DashboardScreen(
         }
     }
 
-    Scaffold { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    Text(
-                        text = formatDateHeader(uiState.selectedDate),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
+            item {
+                Text(
+                    text = formatDateHeader(uiState.selectedDate),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
 
-                item {
-                    AttenoteSectionCard(title = "Scheduled Classes") {
-                        if (uiState.scheduledClasses.isEmpty()) {
+            item {
+                AttenoteSectionCard(title = "Scheduled Classes") {
+                    if (uiState.scheduledClasses.isEmpty()) {
+                        Text(
+                            text = "No classes scheduled for this date",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    } else {
+                        androidx.compose.foundation.layout.Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            uiState.scheduledClasses.forEach { scheduledClass ->
+                                ScheduledClassCard(
+                                    scheduledClass = scheduledClass,
+                                    onTakeAttendance = {
+                                        onNavigateToTakeAttendance(
+                                            scheduledClass.classId,
+                                            scheduledClass.scheduleId,
+                                            uiState.selectedDate.toString()
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Notes",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        TextButton(
+                            onClick = {
+                                onNavigateToAddNote(uiState.selectedDate.toString(), -1L)
+                            }
+                        ) {
+                            Text(text = "+ New Note")
+                        }
+                    }
+
+                    AttenoteSectionCard {
+                        if (uiState.notes.isEmpty()) {
                             Text(
-                                text = "No classes scheduled for this date",
+                                text = "No notes for this date",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(8.dp)
@@ -101,15 +146,11 @@ fun DashboardScreen(
                             androidx.compose.foundation.layout.Column(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                uiState.scheduledClasses.forEach { scheduledClass ->
-                                    ScheduledClassCard(
-                                        scheduledClass = scheduledClass,
-                                        onTakeAttendance = {
-                                            onNavigateToTakeAttendance(
-                                                scheduledClass.classId,
-                                                scheduledClass.scheduleId,
-                                                uiState.selectedDate.toString()
-                                            )
+                                uiState.notes.forEach { note ->
+                                    NoteCard(
+                                        note = note,
+                                        onOpenNote = {
+                                            onNavigateToAddNote(note.date.toString(), note.noteId)
                                         }
                                     )
                                 }
@@ -117,151 +158,103 @@ fun DashboardScreen(
                         }
                     }
                 }
-
-                item {
-                    androidx.compose.foundation.layout.Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Notes",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            TextButton(
-                                onClick = {
-                                    onNavigateToAddNote(uiState.selectedDate.toString(), -1L)
-                                }
-                            ) {
-                                Text(text = "+ New Note")
-                            }
-                        }
-
-                        AttenoteSectionCard {
-                            if (uiState.notes.isEmpty()) {
-                                Text(
-                                    text = "No notes for this date",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(8.dp)
-                                )
-                            } else {
-                                androidx.compose.foundation.layout.Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    uiState.notes.forEach { note ->
-                                        NoteCard(
-                                            note = note,
-                                            onOpenNote = {
-                                                onNavigateToAddNote(note.date.toString(), note.noteId)
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    CalendarSection(
-                        modifier = Modifier.fillMaxWidth(),
-                        expanded = uiState.calendarExpanded,
-                        selectedDate = uiState.selectedDate,
-                        currentMonth = uiState.currentMonth,
-                        datesWithContent = uiState.datesWithClasses + uiState.datesWithNotes,
-                        weekRange = viewModel.getWeekRange(uiState.selectedDate),
-                        onDateSelected = viewModel::onDateSelected,
-                        onPreviousWeek = viewModel::onPreviousWeekClicked,
-                        onNextWeek = viewModel::onNextWeekClicked,
-                        onPreviousMonth = viewModel::onPreviousMonthClicked,
-                        onNextMonth = viewModel::onNextMonthClicked,
-                        onToggleExpanded = viewModel::onToggleCalendar
-                    )
-                }
             }
 
-            if (uiState.fabMenuExpanded) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.3f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = viewModel::onDismissFabMenu
-                        )
+            item {
+                CalendarSection(
+                    modifier = Modifier.fillMaxWidth(),
+                    expanded = uiState.calendarExpanded,
+                    selectedDate = uiState.selectedDate,
+                    currentMonth = uiState.currentMonth,
+                    datesWithContent = uiState.datesWithClasses + uiState.datesWithNotes,
+                    weekRange = viewModel.getWeekRange(uiState.selectedDate),
+                    onDateSelected = viewModel::onDateSelected,
+                    onPreviousWeek = viewModel::onPreviousWeekClicked,
+                    onNextWeek = viewModel::onNextWeekClicked,
+                    onPreviousMonth = viewModel::onPreviousMonthClicked,
+                    onNextMonth = viewModel::onNextMonthClicked,
+                    onToggleExpanded = viewModel::onToggleCalendar
                 )
             }
+        }
 
+        if (uiState.fabMenuExpanded) {
             Box(
                 modifier = Modifier
-                    .align(
-                        when (uiState.fabPosition) {
-                            FabPosition.LEFT -> Alignment.BottomStart
-                            FabPosition.RIGHT -> Alignment.BottomEnd
-                        }
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = viewModel::onDismissFabMenu
                     )
-                    .padding(16.dp)
-                    .offset { IntOffset(dragOffsetPx.roundToInt(), 0) }
-                    .draggable(
-                        orientation = Orientation.Horizontal,
-                        state = rememberDraggableState { delta ->
-                            accumulatedDrag += delta
-                            dragOffsetPx = (dragOffsetPx + delta).coerceIn(-72f, 72f)
-                        },
-                        onDragStopped = {
-                            when {
-                                accumulatedDrag <= -swipeThresholdPx -> viewModel.onFabSwipedLeft()
-                                accumulatedDrag >= swipeThresholdPx -> viewModel.onFabSwipedRight()
-                            }
-                            accumulatedDrag = 0f
-                            dragOffsetPx = 0f
-                        }
-                    )
-            ) {
-                HamburgerFabMenu(
-                    expanded = uiState.fabMenuExpanded,
-                    onToggle = viewModel::onToggleFabMenu,
-                    onCreateClass = {
-                        onNavigateToCreateClass()
-                        viewModel.onDismissFabMenu()
-                    },
-                    onManageClasses = {
-                        onNavigateToManageClassList()
-                        viewModel.onDismissFabMenu()
-                    },
-                    onManageStudents = {
-                        onNavigateToManageStudents()
-                        viewModel.onDismissFabMenu()
-                    },
-                    onSettings = {
-                        onNavigateToSettings()
-                        viewModel.onDismissFabMenu()
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .align(
+                    when (uiState.fabPosition) {
+                        FabPosition.LEFT -> Alignment.BottomStart
+                        FabPosition.RIGHT -> Alignment.BottomEnd
                     }
                 )
-            }
-
-            if (uiState.isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
+                .padding(16.dp)
+                .offset { IntOffset(dragOffsetPx.roundToInt(), 0) }
+                .draggable(
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { delta ->
+                        accumulatedDrag += delta
+                        dragOffsetPx = (dragOffsetPx + delta).coerceIn(-72f, 72f)
+                    },
+                    onDragStopped = {
+                        when {
+                            accumulatedDrag <= -swipeThresholdPx -> viewModel.onFabSwipedLeft()
+                            accumulatedDrag >= swipeThresholdPx -> viewModel.onFabSwipedRight()
+                        }
+                        accumulatedDrag = 0f
+                        dragOffsetPx = 0f
+                    }
+                )
+        ) {
+            HamburgerFabMenu(
+                expanded = uiState.fabMenuExpanded,
+                onToggle = viewModel::onToggleFabMenu,
+                onCreateClass = {
+                    onNavigateToCreateClass()
+                    viewModel.onDismissFabMenu()
+                },
+                onManageClasses = {
+                    onNavigateToManageClassList()
+                    viewModel.onDismissFabMenu()
+                },
+                onManageStudents = {
+                    onNavigateToManageStudents()
+                    viewModel.onDismissFabMenu()
+                },
+                onSettings = {
+                    onNavigateToSettings()
+                    viewModel.onDismissFabMenu()
                 }
-            }
+            )
+        }
 
-            uiState.error?.let { message ->
-                Snackbar(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 84.dp, start = 16.dp, end = 16.dp)
-                ) {
-                    Text(text = message)
-                }
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        }
+
+        uiState.error?.let { message ->
+            Snackbar(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 84.dp, start = 16.dp, end = 16.dp)
+            ) {
+                Text(text = message)
             }
         }
     }

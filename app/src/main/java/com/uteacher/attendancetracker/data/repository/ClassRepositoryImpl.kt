@@ -12,6 +12,7 @@ import com.uteacher.attendancetracker.domain.mapper.toDomain
 import com.uteacher.attendancetracker.domain.mapper.toEntity
 import com.uteacher.attendancetracker.domain.model.Class as DomainClass
 import com.uteacher.attendancetracker.domain.model.Schedule
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -96,6 +97,30 @@ class ClassRepositoryImpl(
             RepositoryResult.Success(Unit)
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to update class state: ${e.message}")
+        }
+    }
+
+    override suspend fun updateClassDateRange(
+        classId: Long,
+        startDate: LocalDate,
+        endDate: LocalDate
+    ): RepositoryResult<Unit> {
+        if (startDate.isAfter(endDate)) {
+            return RepositoryResult.Error("Start date must be before or equal to end date")
+        }
+        return try {
+            val classEntity = classDao.getClassById(classId)
+                ?: return RepositoryResult.Error("Class not found")
+
+            classDao.updateClass(
+                classEntity.copy(
+                    startDate = startDate,
+                    endDate = endDate
+                )
+            )
+            RepositoryResult.Success(Unit)
+        } catch (e: Exception) {
+            RepositoryResult.Error("Failed to update class date range: ${e.message}")
         }
     }
 

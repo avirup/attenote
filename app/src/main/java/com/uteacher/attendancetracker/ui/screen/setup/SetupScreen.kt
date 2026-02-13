@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,119 +73,116 @@ fun SetupScreen(
         }
     }
 
-    Scaffold { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            AttenoteTextField(
-                value = uiState.name,
-                onValueChange = viewModel::onNameChanged,
-                label = "Name *",
-                enabled = !uiState.isLoading
-            )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        AttenoteTextField(
+            value = uiState.name,
+            onValueChange = viewModel::onNameChanged,
+            label = "Name *",
+            enabled = !uiState.isLoading
+        )
 
-            AttenoteTextField(
-                value = uiState.institute,
-                onValueChange = viewModel::onInstituteChanged,
-                label = "Institute (optional)",
-                enabled = !uiState.isLoading
-            )
+        AttenoteTextField(
+            value = uiState.institute,
+            onValueChange = viewModel::onInstituteChanged,
+            label = "Institute (optional)",
+            enabled = !uiState.isLoading
+        )
 
-            AttenoteSectionCard(title = "Profile Picture") {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val imagePath = uiState.profileImagePath
-                    if (!imagePath.isNullOrBlank()) {
-                        val bitmap = BitmapFactory.decodeFile(imagePath)
-                        if (bitmap != null) {
-                            Image(
-                                bitmap = bitmap.asImageBitmap(),
-                                contentDescription = "Profile picture",
-                                modifier = Modifier
-                                    .size(100.dp)
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-                        TextButton(
-                            onClick = {
-                                runCatching { File(imagePath).delete() }
-                                viewModel.onProfileImageSelected(null)
-                            },
-                            enabled = !uiState.isLoading
-                        ) {
-                            Text(text = "Remove")
-                        }
-                    } else {
-                        AttenoteButton(
-                            text = "Select Image",
-                            onClick = {
-                                imagePickerLauncher.launch(
-                                    PickVisualMediaRequest(
-                                        ActivityResultContracts.PickVisualMedia.ImageOnly
-                                    )
-                                )
-                            },
-                            enabled = !uiState.isLoading
+        AttenoteSectionCard(title = "Profile Picture") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val imagePath = uiState.profileImagePath
+                if (!imagePath.isNullOrBlank()) {
+                    val bitmap = BitmapFactory.decodeFile(imagePath)
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "Profile picture",
+                            modifier = Modifier
+                                .size(100.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
                         )
                     }
-                }
-            }
-
-            AttenoteSectionCard(title = "Security") {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    TextButton(
+                        onClick = {
+                            runCatching { File(imagePath).delete() }
+                            viewModel.onProfileImageSelected(null)
+                        },
+                        enabled = !uiState.isLoading
                     ) {
-                        Text(
-                            text = "Enable Biometric Lock",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Switch(
-                            checked = uiState.biometricEnabled,
-                            onCheckedChange = viewModel::onBiometricToggled,
-                            enabled = uiState.isDeviceSecure && !uiState.isLoading
-                        )
+                        Text(text = "Remove")
                     }
-                    if (!uiState.isDeviceSecure) {
-                        Text(
-                            text = "Set up a device lock screen to enable biometric lock.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                } else {
+                    AttenoteButton(
+                        text = "Select Image",
+                        onClick = {
+                            imagePickerLauncher.launch(
+                                PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                                )
+                            )
+                        },
+                        enabled = !uiState.isLoading
+                    )
                 }
             }
+        }
 
-            uiState.error?.let { error ->
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            AttenoteButton(
-                text = "Save",
-                onClick = viewModel::onSaveClicked,
-                enabled = !uiState.isLoading
-            )
-
-            if (uiState.isLoading) {
-                Box(
+        AttenoteSectionCard(title = "Security") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CircularProgressIndicator()
+                    Text(
+                        text = "Enable Biometric Lock",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Switch(
+                        checked = uiState.biometricEnabled,
+                        onCheckedChange = viewModel::onBiometricToggled,
+                        enabled = uiState.isDeviceSecure && !uiState.isLoading
+                    )
                 }
+                if (!uiState.isDeviceSecure) {
+                    Text(
+                        text = "Set up a device lock screen to enable biometric lock.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        uiState.error?.let { error ->
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        AttenoteButton(
+            text = "Save",
+            onClick = viewModel::onSaveClicked,
+            enabled = !uiState.isLoading
+        )
+
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
             }
         }
     }
