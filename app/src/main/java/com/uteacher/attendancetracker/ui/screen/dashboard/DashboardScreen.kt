@@ -31,12 +31,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.uteacher.attendancetracker.R
 import com.uteacher.attendancetracker.domain.model.FabPosition
 import com.uteacher.attendancetracker.ui.navigation.ActionBarPrimaryAction
@@ -64,6 +67,7 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val listState = rememberLazyListState()
     val fabSwipeThresholdPx = with(LocalDensity.current) { 24.dp.toPx() }
     val calendarSwipeThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
@@ -76,18 +80,30 @@ fun DashboardScreen(
     var calendarAccumulatedDrag by remember { mutableFloatStateOf(0f) }
     var calendarDragOffsetPx by remember { mutableFloatStateOf(0f) }
 
-    SideEffect {
-        onSetActionBarPrimaryAction(
-            ActionBarPrimaryAction(
-                title = "Summary",
-                iconResId = R.drawable.ic_daily_summary_24,
-                contentDescription = "Open summary",
-                onClick = onNavigateToDailySummary
-            )
+    val summaryAction = remember(onNavigateToDailySummary) {
+        ActionBarPrimaryAction(
+            title = "Summary",
+            iconResId = R.drawable.ic_daily_summary_24,
+            contentDescription = "Open summary",
+            onClick = onNavigateToDailySummary
         )
     }
-    DisposableEffect(onSetActionBarPrimaryAction) {
-        onDispose { onSetActionBarPrimaryAction(null) }
+
+    SideEffect {
+        onSetActionBarPrimaryAction(summaryAction)
+    }
+
+    DisposableEffect(onSetActionBarPrimaryAction, lifecycleOwner, summaryAction) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                onSetActionBarPrimaryAction(summaryAction)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            onSetActionBarPrimaryAction(null)
+        }
     }
 
     LaunchedEffect(listState.isScrollInProgress) {

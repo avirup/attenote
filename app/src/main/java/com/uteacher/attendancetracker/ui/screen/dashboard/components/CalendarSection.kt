@@ -26,7 +26,8 @@ fun CalendarSection(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f),
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         )
     ) {
         if (expanded) {
