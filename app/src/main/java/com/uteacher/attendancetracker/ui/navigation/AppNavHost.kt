@@ -14,22 +14,21 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
-import com.uteacher.attendancetracker.ui.theme.component.AttenoteButton
+import com.uteacher.attendancetracker.ui.screen.auth.AuthGateScreen
+import com.uteacher.attendancetracker.ui.screen.dashboard.DashboardScreen
+import com.uteacher.attendancetracker.ui.screen.setup.SetupScreen
+import com.uteacher.attendancetracker.ui.screen.splash.SplashScreen
 
 @Composable
 fun AppNavHost(
     navController: NavHostController,
-    startDestination: AppRoute = AppRoute.Splash,
+    startDestination: AppRoute,
     onActionBarChanged: (title: String, showBack: Boolean) -> Unit
 ) {
     NavHost(
@@ -37,46 +36,35 @@ fun AppNavHost(
         startDestination = startDestination
     ) {
         composable<AppRoute.Splash> {
-            ConfigureActionBar(
-                route = AppRoute.Splash,
-                onActionBarChanged = onActionBarChanged
-            )
-            SplashPlaceholder(
-                onOpenSetup = { navController.navigate(AppRoute.Setup) },
-                onOpenAuthGate = { navController.navigate(AppRoute.AuthGate) },
-                onOpenDashboard = { navController.navigate(AppRoute.Dashboard) }
+            ConfigureActionBar(route = AppRoute.Splash, onActionBarChanged = onActionBarChanged)
+            SplashScreen(
+                onNavigateToSetup = {
+                    navController.navigate(AppRoute.Setup) {
+                        popUpTo<AppRoute.Splash> {
+                            inclusive = true
+                        }
+                    }
+                }
             )
         }
 
         composable<AppRoute.Setup> {
-            ConfigureActionBar(
-                route = AppRoute.Setup,
-                onActionBarChanged = onActionBarChanged
-            )
-            PlaceholderScaffold(
-                title = "Setup",
-                readinessStep = "03"
-            ) {
-                AttenoteButton(
-                    text = "Complete Setup",
-                    onClick = {
-                        navController.navigate(AppRoute.Dashboard) {
-                            popUpTo<AppRoute.Splash> {
-                                inclusive = true
-                            }
+            ConfigureActionBar(route = AppRoute.Setup, onActionBarChanged = onActionBarChanged)
+            SetupScreen(
+                onNavigateToDashboard = {
+                    navController.navigate(AppRoute.Dashboard) {
+                        popUpTo<AppRoute.Setup> {
+                            inclusive = true
                         }
                     }
-                )
-            }
+                }
+            )
         }
 
         composable<AppRoute.AuthGate> {
-            ConfigureActionBar(
-                route = AppRoute.AuthGate,
-                onActionBarChanged = onActionBarChanged
-            )
-            AuthGatePlaceholder(
-                onAuthSuccess = {
+            ConfigureActionBar(route = AppRoute.AuthGate, onActionBarChanged = onActionBarChanged)
+            AuthGateScreen(
+                onNavigateToDashboard = {
                     navController.navigate(AppRoute.Dashboard) {
                         popUpTo<AppRoute.AuthGate> {
                             inclusive = true
@@ -87,45 +75,13 @@ fun AppNavHost(
         }
 
         composable<AppRoute.Dashboard> {
-            ConfigureActionBar(
-                route = AppRoute.Dashboard,
-                onActionBarChanged = onActionBarChanged
-            )
-            DashboardPlaceholder(
-                onOpenCreateClass = { navController.navigate(AppRoute.CreateClass) },
-                onOpenManageClasses = { navController.navigate(AppRoute.ManageClassList) },
-                onOpenEditClass = { navController.navigate(AppRoute.EditClass(classId = 1L)) },
-                onOpenManageStudents = { navController.navigate(AppRoute.ManageStudents) },
-                onOpenTakeAttendance = {
-                    navController.navigate(
-                        AppRoute.TakeAttendance(
-                            classId = 1L,
-                            scheduleId = 1L,
-                            date = "2026-02-13"
-                        )
-                    )
-                },
-                onOpenAddNote = {
-                    navController.navigate(
-                        AppRoute.AddNote(
-                            date = "2026-02-13",
-                            noteId = -1L
-                        )
-                    )
-                },
-                onOpenSettings = { navController.navigate(AppRoute.Settings) }
-            )
+            ConfigureActionBar(route = AppRoute.Dashboard, onActionBarChanged = onActionBarChanged)
+            DashboardScreen()
         }
 
         composable<AppRoute.CreateClass> {
-            ConfigureActionBar(
-                route = AppRoute.CreateClass,
-                onActionBarChanged = onActionBarChanged
-            )
-            PlaceholderScaffold(
-                title = "Create Class",
-                readinessStep = "05"
-            )
+            ConfigureActionBar(route = AppRoute.CreateClass, onActionBarChanged = onActionBarChanged)
+            PlaceholderScaffold(title = "Create Class", readinessStep = "09")
         }
 
         composable<AppRoute.ManageClassList> {
@@ -133,45 +89,30 @@ fun AppNavHost(
                 route = AppRoute.ManageClassList,
                 onActionBarChanged = onActionBarChanged
             )
-            PlaceholderScaffold(
-                title = "Manage Classes",
-                readinessStep = "06"
-            )
+            PlaceholderScaffold(title = "Manage Classes", readinessStep = "09")
         }
 
         composable<AppRoute.EditClass> { backStackEntry ->
-            val route: AppRoute.EditClass = backStackEntry.toRoute()
-            ConfigureActionBar(
-                route = route,
-                onActionBarChanged = onActionBarChanged
-            )
+            val route = backStackEntry.toRoute<AppRoute.EditClass>()
+            ConfigureActionBar(route = route, onActionBarChanged = onActionBarChanged)
             PlaceholderScaffold(
                 title = "Edit Class",
-                readinessStep = "06",
+                readinessStep = "09",
                 routeParameters = listOf("classId" to route.classId.toString())
             )
         }
 
         composable<AppRoute.ManageStudents> {
-            ConfigureActionBar(
-                route = AppRoute.ManageStudents,
-                onActionBarChanged = onActionBarChanged
-            )
-            PlaceholderScaffold(
-                title = "Manage Students",
-                readinessStep = "07"
-            )
+            ConfigureActionBar(route = AppRoute.ManageStudents, onActionBarChanged = onActionBarChanged)
+            PlaceholderScaffold(title = "Manage Students", readinessStep = "10")
         }
 
         composable<AppRoute.TakeAttendance> { backStackEntry ->
-            val route: AppRoute.TakeAttendance = backStackEntry.toRoute()
-            ConfigureActionBar(
-                route = route,
-                onActionBarChanged = onActionBarChanged
-            )
+            val route = backStackEntry.toRoute<AppRoute.TakeAttendance>()
+            ConfigureActionBar(route = route, onActionBarChanged = onActionBarChanged)
             PlaceholderScaffold(
                 title = "Take Attendance",
-                readinessStep = "08",
+                readinessStep = "11",
                 routeParameters = listOf(
                     "classId" to route.classId.toString(),
                     "scheduleId" to route.scheduleId.toString(),
@@ -181,14 +122,11 @@ fun AppNavHost(
         }
 
         composable<AppRoute.AddNote> { backStackEntry ->
-            val route: AppRoute.AddNote = backStackEntry.toRoute()
-            ConfigureActionBar(
-                route = route,
-                onActionBarChanged = onActionBarChanged
-            )
+            val route = backStackEntry.toRoute<AppRoute.AddNote>()
+            ConfigureActionBar(route = route, onActionBarChanged = onActionBarChanged)
             PlaceholderScaffold(
                 title = "Add Note",
-                readinessStep = "09",
+                readinessStep = "12",
                 routeParameters = listOf(
                     "date" to route.date,
                     "noteId" to route.noteId.toString()
@@ -197,14 +135,8 @@ fun AppNavHost(
         }
 
         composable<AppRoute.Settings> {
-            ConfigureActionBar(
-                route = AppRoute.Settings,
-                onActionBarChanged = onActionBarChanged
-            )
-            PlaceholderScaffold(
-                title = "Settings",
-                readinessStep = "10"
-            )
+            ConfigureActionBar(route = AppRoute.Settings, onActionBarChanged = onActionBarChanged)
+            PlaceholderScaffold(title = "Settings", readinessStep = "13")
         }
     }
 }
@@ -217,116 +149,6 @@ private fun ConfigureActionBar(
     val policy = route.actionBarPolicy()
     SideEffect {
         onActionBarChanged(policy.title, policy.showBack)
-    }
-}
-
-@Composable
-private fun SplashPlaceholder(
-    onOpenSetup: () -> Unit,
-    onOpenAuthGate: () -> Unit,
-    onOpenDashboard: () -> Unit
-) {
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Splash Placeholder",
-                style = MaterialTheme.typography.titleLarge
-            )
-            Text(
-                text = "Root route with no back navigation.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            AttenoteButton(text = "Go to Setup", onClick = onOpenSetup)
-            AttenoteButton(text = "Go to Auth Gate", onClick = onOpenAuthGate)
-            AttenoteButton(text = "Open Dashboard (Debug)", onClick = onOpenDashboard)
-        }
-    }
-}
-
-@Composable
-private fun AuthGatePlaceholder(onAuthSuccess: () -> Unit) {
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Auth Gate Placeholder",
-                style = MaterialTheme.typography.titleLarge
-            )
-            Text(
-                text = "Root route with no back navigation.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            AttenoteButton(text = "Authenticate", onClick = onAuthSuccess)
-        }
-    }
-}
-
-@Composable
-private fun DashboardPlaceholder(
-    onOpenCreateClass: () -> Unit,
-    onOpenManageClasses: () -> Unit,
-    onOpenEditClass: () -> Unit,
-    onOpenManageStudents: () -> Unit,
-    onOpenTakeAttendance: () -> Unit,
-    onOpenAddNote: () -> Unit,
-    onOpenSettings: () -> Unit
-) {
-    var validationResult by rememberSaveable {
-        mutableStateOf("Not tested yet")
-    }
-
-    PlaceholderScaffold(
-        title = "Dashboard",
-        readinessStep = "04"
-    ) {
-        AttenoteButton(text = "Create Class", onClick = onOpenCreateClass)
-        AttenoteButton(text = "Manage Classes", onClick = onOpenManageClasses)
-        AttenoteButton(text = "Edit Class (classId = 1)", onClick = onOpenEditClass)
-        AttenoteButton(text = "Manage Students", onClick = onOpenManageStudents)
-        AttenoteButton(text = "Take Attendance", onClick = onOpenTakeAttendance)
-        AttenoteButton(text = "Add Note", onClick = onOpenAddNote)
-        AttenoteButton(text = "Settings", onClick = onOpenSettings)
-
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Date Validation Check:",
-            style = MaterialTheme.typography.labelMedium
-        )
-        AttenoteButton(
-            text = "Test Invalid Date Formats",
-            onClick = {
-                val firstError = runCatching { AppRoute.AddNote("2026/02/13") }
-                    .exceptionOrNull()
-                    ?.message
-                    ?: "No exception for 2026/02/13"
-                val secondError = runCatching { AppRoute.TakeAttendance(1L, 1L, "13-02-2026") }
-                    .exceptionOrNull()
-                    ?.message
-                    ?: "No exception for 13-02-2026"
-                validationResult = "$firstError | $secondError"
-            }
-        )
-        Text(
-            text = validationResult,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
@@ -355,7 +177,6 @@ private fun PlaceholderScaffold(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
             if (routeParameters.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -370,7 +191,6 @@ private fun PlaceholderScaffold(
                     )
                 }
             }
-
             Spacer(modifier = Modifier.height(8.dp))
             actions()
         }

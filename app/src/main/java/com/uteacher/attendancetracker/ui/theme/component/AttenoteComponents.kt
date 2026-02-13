@@ -112,6 +112,7 @@ fun AttenoteTextField(
     onValueChange: (String) -> Unit,
     label: String,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     errorMessage: String? = null,
     singleLine: Boolean = false,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
@@ -127,6 +128,7 @@ fun AttenoteTextField(
                 .defaultMinSize(minHeight = 48.dp)
                 .semantics { this.contentDescription = contentDescription },
             label = { Text(text = label, style = MaterialTheme.typography.labelMedium) },
+            enabled = enabled,
             singleLine = singleLine,
             isError = !errorMessage.isNullOrBlank(),
             keyboardOptions = keyboardOptions,
@@ -144,12 +146,24 @@ fun AttenoteTextField(
 
 @Composable
 fun AttenoteSectionCard(
+    title: String? = null,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     ElevatedCard(modifier = modifier.fillMaxWidth()) {
-        Box(modifier = Modifier.padding(16.dp)) {
-            content()
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (!title.isNullOrBlank()) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            Box {
+                content()
+            }
         }
     }
 }
