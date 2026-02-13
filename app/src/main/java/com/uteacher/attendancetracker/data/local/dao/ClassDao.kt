@@ -1,4 +1,5 @@
 package com.uteacher.attendancetracker.data.local.dao
+import kotlin.jvm.JvmSuppressWildcards
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -11,6 +12,7 @@ import com.uteacher.attendancetracker.data.local.entity.ClassWithSchedules
 import kotlinx.coroutines.flow.Flow
 
 @Dao
+@JvmSuppressWildcards
 interface ClassDao {
 
     @Query("SELECT * FROM classes WHERE isOpen = :isOpen ORDER BY createdAt DESC")

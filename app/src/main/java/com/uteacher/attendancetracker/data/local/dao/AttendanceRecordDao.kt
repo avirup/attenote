@@ -1,4 +1,5 @@
 package com.uteacher.attendancetracker.data.local.dao
+import kotlin.jvm.JvmSuppressWildcards
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -9,6 +10,7 @@ import com.uteacher.attendancetracker.data.local.entity.AttendanceRecordEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
+@JvmSuppressWildcards
 interface AttendanceRecordDao {
 
     @Query("SELECT * FROM attendance_records WHERE sessionId = :sessionId ORDER BY studentId ASC")
