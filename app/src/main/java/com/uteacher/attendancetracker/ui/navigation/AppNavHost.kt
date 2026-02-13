@@ -29,6 +29,7 @@ import com.uteacher.attendancetracker.ui.screen.createclass.CreateClassScreen
 import com.uteacher.attendancetracker.ui.screen.dashboard.DashboardScreen
 import com.uteacher.attendancetracker.ui.screen.manageclass.EditClassScreen
 import com.uteacher.attendancetracker.ui.screen.manageclass.ManageClassListScreen
+import com.uteacher.attendancetracker.ui.screen.managestudents.ManageStudentsScreen
 import com.uteacher.attendancetracker.ui.screen.setup.SetupScreen
 import com.uteacher.attendancetracker.ui.screen.splash.SplashScreen
 
@@ -173,7 +174,7 @@ fun AppNavHost(
                 onActionBarChanged = onActionBarChanged,
                 onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
             )
-            PlaceholderScaffold(title = "Manage Students", readinessStep = "10")
+            ManageStudentsScreen()
         }
 
         composable<AppRoute.TakeAttendance> { backStackEntry ->

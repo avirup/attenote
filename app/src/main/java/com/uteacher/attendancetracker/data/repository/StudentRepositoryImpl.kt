@@ -62,14 +62,14 @@ class StudentRepositoryImpl(
         val normalizedStudent = student.normalizeForSave()
 
         if (hasDuplicateStudent(normalizedStudent)) {
-            return RepositoryResult.Error("Student already exists with same name and registration number")
+            return RepositoryResult.Error("Student with this name and registration number already exists")
         }
 
         return try {
             val studentId = studentDao.insertStudent(normalizedStudent.toEntity())
             RepositoryResult.Success(studentId)
         } catch (constraint: SQLiteConstraintException) {
-            RepositoryResult.Error("Student already exists with same name and registration number")
+            RepositoryResult.Error("Student with this name and registration number already exists")
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to create student: ${e.message}")
         }
@@ -79,7 +79,7 @@ class StudentRepositoryImpl(
         val normalizedStudent = student.normalizeForSave()
 
         if (hasDuplicateStudent(normalizedStudent, ignoreStudentId = normalizedStudent.studentId)) {
-            return RepositoryResult.Error("Another student exists with same name and registration number")
+            return RepositoryResult.Error("Student with this name and registration number already exists")
         }
 
         return try {
@@ -90,7 +90,7 @@ class StudentRepositoryImpl(
                 RepositoryResult.Success(Unit)
             }
         } catch (constraint: SQLiteConstraintException) {
-            RepositoryResult.Error("Another student exists with same name and registration number")
+            RepositoryResult.Error("Student with this name and registration number already exists")
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to update student: ${e.message}")
         }
