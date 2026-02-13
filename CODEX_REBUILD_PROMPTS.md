@@ -82,7 +82,7 @@ At the end of each prompt output, include:
 
 ## Global Prefix (prepend to every prompt)
 ```text
-Work only in this repository. Rebuild incrementally from scratch. Keep Android system navigation buttons visible (do not hide navigation bars). Keep UI consistent using one shared minimal colorful theme (navy/teal style). Use Jetpack Compose + Material3 + Koin + Room + DataStore + Coroutines/Flow + BiometricPrompt + Coil + WorkManager where required by the step. Use typed AppRoute navigation (no raw route strings). End each step by running compile/install/launch and giving a manual verification checklist with pass/fail.
+Work only in this repository. Rebuild incrementally from scratch. Keep Android system navigation buttons visible (do not hide navigation bars). Keep UI consistent using one shared minimal colorful light theme (white/cream style). Use Jetpack Compose + Material3 + Koin + Room + DataStore + Coroutines/Flow + BiometricPrompt + Coil + WorkManager where required by the step. Use typed AppRoute navigation (no raw route strings). End each step by running compile/install/launch and giving a manual verification checklist with pass/fail.
 ```
 
 ## Standard Device Gate (required in every step)
@@ -133,20 +133,20 @@ Implement:
   - `ui/theme/Theme.kt`
   - `ui/theme/component/AttenoteComponents.kt`
 
-3.1. Color palette (Navy/Teal theme)
+3.1. Color palette (Light White/Cream theme)
 Light theme colors:
-  - Primary: Navy Blue #1A4D7A
-  - PrimaryContainer: #D1E4F3
-  - Secondary: Teal #26A69A
-  - SecondaryContainer: #B2DFDB
-  - Tertiary: Muted Purple #6A4C93
-  - TertiaryContainer: #E1D7F0
+  - Primary: Soft Blue #2E5B7A
+  - PrimaryContainer: #E7F0F7
+  - Secondary: Muted Teal #4B9A93
+  - SecondaryContainer: #DFF3EF
+  - Tertiary: Soft Lavender #8A6FA8
+  - TertiaryContainer: #F0E9F7
   - Error: #BA1A1A
   - ErrorContainer: #FFDAD6
-  - Background: #FBFCFE
-  - Surface: #FBFCFE
-  - SurfaceVariant: #E1E2E8
-  - Outline: #73777F
+  - Background: Cream White #FFFDF6
+  - Surface: Warm White #FFFCF8
+  - SurfaceVariant: #F3EEE2
+  - Outline: #8A857B
 
 Dark theme colors (for future support):
   - Primary: #A0C8E8
