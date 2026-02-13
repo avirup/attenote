@@ -3,6 +3,7 @@ package com.uteacher.attendancetracker.di
 import com.uteacher.attendancetracker.ui.screen.auth.AuthGateViewModel
 import com.uteacher.attendancetracker.ui.screen.createclass.CreateClassViewModel
 import com.uteacher.attendancetracker.ui.screen.dashboard.DashboardViewModel
+import com.uteacher.attendancetracker.ui.screen.attendance.TakeAttendanceViewModel
 import com.uteacher.attendancetracker.ui.screen.manageclass.EditClassViewModel
 import com.uteacher.attendancetracker.ui.screen.manageclass.ManageClassListViewModel
 import com.uteacher.attendancetracker.ui.screen.managestudents.ManageStudentsViewModel
@@ -20,6 +21,16 @@ val viewModelModule = module {
     viewModelOf(::CreateClassViewModel)
     viewModelOf(::ManageClassListViewModel)
     viewModelOf(::ManageStudentsViewModel)
+    viewModel { params ->
+        TakeAttendanceViewModel(
+            classId = params.get(),
+            scheduleId = params.get(),
+            dateString = params.get(),
+            classRepository = get(),
+            studentRepository = get(),
+            attendanceRepository = get()
+        )
+    }
     viewModel { params ->
         EditClassViewModel(
             classId = params.get(),

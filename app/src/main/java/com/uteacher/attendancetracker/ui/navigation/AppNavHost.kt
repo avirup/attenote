@@ -27,6 +27,7 @@ import androidx.navigation.toRoute
 import com.uteacher.attendancetracker.ui.screen.auth.AuthGateScreen
 import com.uteacher.attendancetracker.ui.screen.createclass.CreateClassScreen
 import com.uteacher.attendancetracker.ui.screen.dashboard.DashboardScreen
+import com.uteacher.attendancetracker.ui.screen.attendance.TakeAttendanceScreen
 import com.uteacher.attendancetracker.ui.screen.manageclass.EditClassScreen
 import com.uteacher.attendancetracker.ui.screen.manageclass.ManageClassListScreen
 import com.uteacher.attendancetracker.ui.screen.managestudents.ManageStudentsScreen
@@ -184,14 +185,12 @@ fun AppNavHost(
                 onActionBarChanged = onActionBarChanged,
                 onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
             )
-            PlaceholderScaffold(
-                title = "Take Attendance",
-                readinessStep = "11",
-                routeParameters = listOf(
-                    "classId" to route.classId.toString(),
-                    "scheduleId" to route.scheduleId.toString(),
-                    "date" to route.date
-                )
+            TakeAttendanceScreen(
+                classId = route.classId,
+                scheduleId = route.scheduleId,
+                date = route.date,
+                onNavigateBack = { navController.popBackStack() },
+                onSetActionBarPrimaryAction = onActionBarPrimaryActionChanged
             )
         }
 

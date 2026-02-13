@@ -12,6 +12,7 @@ import com.uteacher.attendancetracker.domain.model.AttendanceRecord
 import com.uteacher.attendancetracker.domain.model.AttendanceSession
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class AttendanceRepositoryImpl(
@@ -25,6 +26,9 @@ class AttendanceRepositoryImpl(
 
     override suspend fun getSessionById(sessionId: Long): AttendanceSession? =
         sessionDao.getSessionById(sessionId)?.toDomain()
+
+    override suspend fun getRecordsForSession(sessionId: Long): List<AttendanceRecord> =
+        recordDao.observeRecordsForSession(sessionId).first().toDomain()
 
     override suspend fun findSession(
         classId: Long,
