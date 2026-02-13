@@ -76,7 +76,26 @@ fun AppNavHost(
 
         composable<AppRoute.Dashboard> {
             ConfigureActionBar(route = AppRoute.Dashboard, onActionBarChanged = onActionBarChanged)
-            DashboardScreen()
+            DashboardScreen(
+                onNavigateToCreateClass = {
+                    navController.navigate(AppRoute.CreateClass)
+                },
+                onNavigateToManageClassList = {
+                    navController.navigate(AppRoute.ManageClassList)
+                },
+                onNavigateToManageStudents = {
+                    navController.navigate(AppRoute.ManageStudents)
+                },
+                onNavigateToSettings = {
+                    navController.navigate(AppRoute.Settings)
+                },
+                onNavigateToTakeAttendance = { classId, scheduleId, date ->
+                    navController.navigate(AppRoute.TakeAttendance(classId, scheduleId, date))
+                },
+                onNavigateToAddNote = { date, noteId ->
+                    navController.navigate(AppRoute.AddNote(date = date, noteId = noteId))
+                }
+            )
         }
 
         composable<AppRoute.CreateClass> {

@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.uteacher.attendancetracker.data.repository.internal.InputNormalizer
+import com.uteacher.attendancetracker.domain.model.FabPosition
+import com.uteacher.attendancetracker.domain.model.toFabPosition
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -23,6 +25,7 @@ class SettingsPreferencesRepositoryImpl(
         val ProfileImagePath = stringPreferencesKey("profile_image_path")
         val BiometricEnabled = booleanPreferencesKey("biometric_enabled")
         val SessionFormat = stringPreferencesKey("session_format")
+        val FabPosition = stringPreferencesKey("fab_position")
     }
 
     private val safeData: Flow<Preferences> = dataStore.data.catch { throwable ->
@@ -54,6 +57,11 @@ class SettingsPreferencesRepositoryImpl(
             runCatching { SessionFormat.valueOf(stored) }.getOrDefault(SessionFormat.CURRENT_YEAR)
         }
 
+    override val fabPosition: Flow<FabPosition> =
+        safeData.map { preferences ->
+            (preferences[PreferenceKeys.FabPosition] ?: FabPosition.RIGHT.name).toFabPosition()
+        }
+
     override suspend fun setSetupComplete(complete: Boolean) {
         dataStore.edit { it[PreferenceKeys.IsSetupComplete] = complete }
     }
@@ -83,6 +91,10 @@ class SettingsPreferencesRepositoryImpl(
 
     override suspend fun setSessionFormat(format: SessionFormat) {
         dataStore.edit { it[PreferenceKeys.SessionFormat] = format.name }
+    }
+
+    override suspend fun setFabPosition(position: FabPosition) {
+        dataStore.edit { it[PreferenceKeys.FabPosition] = position.name }
     }
 
     override suspend fun clearAll() {

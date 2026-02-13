@@ -1,5 +1,6 @@
 package com.uteacher.attendancetracker.data.repository
 
+import com.uteacher.attendancetracker.domain.model.FabPosition
 import kotlinx.coroutines.flow.Flow
 
 enum class SessionFormat {
@@ -14,6 +15,7 @@ interface SettingsPreferencesRepository {
     val profileImagePath: Flow<String?>
     val biometricEnabled: Flow<Boolean>
     val sessionFormat: Flow<SessionFormat>
+    val fabPosition: Flow<FabPosition>
 
     suspend fun setSetupComplete(complete: Boolean)
     suspend fun setName(name: String)
@@ -21,6 +23,7 @@ interface SettingsPreferencesRepository {
     suspend fun setProfileImagePath(path: String?)
     suspend fun setBiometricEnabled(enabled: Boolean)
     suspend fun setSessionFormat(format: SessionFormat)
+    suspend fun setFabPosition(position: FabPosition)
 
     suspend fun clearAll()
 }
