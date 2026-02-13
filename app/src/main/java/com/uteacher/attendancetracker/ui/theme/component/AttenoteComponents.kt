@@ -43,6 +43,7 @@ fun AttenoteTopAppBar(
     title: String,
     modifier: Modifier = Modifier,
     onBackClick: (() -> Unit)? = null,
+    showBackButton: Boolean = onBackClick != null,
     backContentDescription: String = "Navigate back",
     actions: @Composable RowScope.() -> Unit = {}
 ) {
@@ -50,7 +51,7 @@ fun AttenoteTopAppBar(
         title = { Text(text = title, style = MaterialTheme.typography.titleMedium) },
         modifier = modifier,
         navigationIcon = {
-            if (onBackClick != null) {
+            if (showBackButton && onBackClick != null) {
                 IconButton(
                     onClick = onBackClick,
                     modifier = Modifier

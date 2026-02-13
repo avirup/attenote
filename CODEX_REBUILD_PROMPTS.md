@@ -62,6 +62,7 @@ After each successfully completed prompt:
 ### Alignment Rules (Read Once)
 - Source-of-truth order for conflicts: `BUSINESS_REQUIREMENTS.md` > `TECHNICAL_REQUIREMENTS.md` > `CODEX_REBUILD_PROMPTS.md` > `ImplementaionPlan.md`.
 - System UI policy is fixed for all steps: keep Android navigation buttons visible, never hide navigation bars, keep status bar visible, and use `WindowCompat.setDecorFitsSystemWindows(window, true)`.
+- Top ActionBar policy is fixed for all steps: use the Android top ActionBar as the global title/back surface, and keep route title + back/up behavior reflected there.
 - Typed navigation policy is fixed for all steps: use typed route objects (`AppRoute`) end-to-end, not raw string route names.
 - Biometric host policy is fixed for all steps: when using `BiometricPrompt` with an activity host, use `FragmentActivity`.
 
@@ -82,7 +83,7 @@ At the end of each prompt output, include:
 
 ## Global Prefix (prepend to every prompt)
 ```text
-Work only in this repository. Rebuild incrementally from scratch. Keep Android system navigation buttons visible (do not hide navigation bars). Keep UI consistent using one shared minimal colorful light theme (white/cream style). Use Jetpack Compose + Material3 + Koin + Room + DataStore + Coroutines/Flow + BiometricPrompt + Coil + WorkManager where required by the step. Use typed AppRoute navigation (no raw route strings). End each step by running compile/install/launch and giving a manual verification checklist with pass/fail.
+Work only in this repository. Rebuild incrementally from scratch. Keep Android system navigation buttons visible (do not hide navigation bars). Keep UI consistent using one shared minimal colorful light theme (white/cream style). Use Android top ActionBar as the global title/back bar on all screens. Use Jetpack Compose + Material3 + Koin + Room + DataStore + Coroutines/Flow + BiometricPrompt + Coil + WorkManager where required by the step. Use typed AppRoute navigation (no raw route strings). End each step by running compile/install/launch and giving a manual verification checklist with pass/fail.
 ```
 
 ## Standard Device Gate (required in every step)
@@ -296,15 +297,7 @@ Feature routes (with back navigation):
 2.3. Placeholder implementation pattern
 Each placeholder should use this structure:
 
-Scaffold(
-    topBar = {
-        AttenoteTopAppBar(
-            title = "[Screen Name]",
-            showBackButton = [true for features, false for root],
-            onBackClick = { navController.popBackStack() }
-        )
-    }
-) { padding ->
+Scaffold { padding ->
     Column(
         modifier = Modifier
             .padding(padding)
@@ -332,9 +325,9 @@ Scaffold(
     }
 }
 
-2.4. Top app bar configuration per route:
-- Splash: no app bar
-- AuthGate: no app bar (or minimal centered title)
+2.4. Top ActionBar configuration per route:
+- Splash: title "Splash", no back button
+- AuthGate: title "Auth Gate", no back button
 - Setup: title "Setup", no back button
 - Dashboard: title "Dashboard", no back button
 - CreateClass: title "Create Class", back button
@@ -347,7 +340,8 @@ Scaffold(
 
 3. Wire into activity
 - `MainActivity` creates NavController via rememberNavController()
-- `MainActivity` renders `AppNavHost(startDestination = Splash, navController = navController)`
+- `MainActivity` renders `AppNavHost(startDestination = Splash, navController = navController)` and applies route title/back state to Android ActionBar.
+- Handle top ActionBar back/up click in activity (`android.R.id.home`) by delegating to `navController.popBackStack()`.
 - Use default Material Motion transitions (do not customize animations in this step)
 
 Done criteria:
@@ -356,7 +350,7 @@ Done criteria:
 - Navigation between all placeholder screens works.
 - Back navigation works correctly on feature routes.
 - Back navigation does NOT work on root routes.
-- Top app bars use AttenoteTopAppBar component consistently.
+- Top ActionBar title + back/up state are consistent per route.
 - Route parameters display correctly in placeholders.
 
 Output format:
@@ -371,7 +365,7 @@ Output format:
    □ Back button visibility correct per route type
    □ Route parameters display in placeholders
    □ Invalid date formats rejected (test "2026/02/13", "13-02-2026")
-   □ Top app bars styled consistently
+   □ Top ActionBar title/back state is correct per route
 ```
 
 ### Git Commit Message (Step 02)

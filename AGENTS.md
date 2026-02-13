@@ -45,6 +45,8 @@ After every prompt:
   `BUSINESS_REQUIREMENTS.md` > `TECHNICAL_REQUIREMENTS.md` > `CODEX_REBUILD_PROMPTS.md` > `ImplementaionPlan.md`.
 - System UI policy:
   keep Android navigation buttons visible, never hide navigation bars, keep status bar visible, and use `WindowCompat.setDecorFitsSystemWindows(window, true)`.
+- Top ActionBar policy:
+  use the Android top ActionBar as the global title/back surface, and reflect route title + back/up state there.
 - Navigation policy:
   use typed route objects (`AppRoute`) end-to-end; do not use raw route strings.
 - Biometric host policy:
@@ -67,7 +69,7 @@ At the end of each prompt output, include:
 
 ## Global Prefix
 ```text
-Work only in this repository. Rebuild incrementally from scratch. Keep Android system navigation buttons visible (do not hide navigation bars). Keep UI consistent using one shared minimal colorful theme (navy/teal style). Use Jetpack Compose + Material3 + Koin + Room + DataStore + Coroutines/Flow + BiometricPrompt + Coil + WorkManager where required by the step. Use typed AppRoute navigation (no raw route strings). End each step by running compile/install/launch and giving a manual verification checklist with pass/fail.
+Work only in this repository. Rebuild incrementally from scratch. Keep Android system navigation buttons visible (do not hide navigation bars). Keep UI consistent using one shared minimal colorful light theme (white/cream style). Use Android top ActionBar as the global title/back bar on all screens. Use Jetpack Compose + Material3 + Koin + Room + DataStore + Coroutines/Flow + BiometricPrompt + Coil + WorkManager where required by the step. Use typed AppRoute navigation (no raw route strings). End each step by running compile/install/launch and giving a manual verification checklist with pass/fail.
 ```
 
 ## Standard Device Gate
