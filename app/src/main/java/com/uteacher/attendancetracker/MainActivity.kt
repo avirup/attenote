@@ -47,6 +47,7 @@ class MainActivity : FragmentActivity() {
     private var showContent by mutableStateOf(false)
     private var startDestination: AppRoute? by mutableStateOf(null)
     private var actionBarInsetPx by mutableIntStateOf(0)
+    private var navigationBarInsetPx by mutableIntStateOf(0)
 
     private var navigateUpHandler: (() -> Boolean)? = null
     private var lastActionBarTitle: String? = null
@@ -57,6 +58,7 @@ class MainActivity : FragmentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         applyActionBarState(title = "Splash", showBack = false)
         actionBarInsetPx = resolveTopChromeInsetPx()
+        navigationBarInsetPx = resolveBottomNavigationInsetPx()
 
         lifecycleScope.launch {
             val isSetupComplete = settingsRepo.isSetupComplete.first()
@@ -99,6 +101,7 @@ class MainActivity : FragmentActivity() {
         setContent {
             AttenoteTheme {
                 val actionBarInsetDp = with(LocalDensity.current) { actionBarInsetPx.toDp() }
+                val navigationBarInsetDp = with(LocalDensity.current) { navigationBarInsetPx.toDp() }
                 if (showContent && startDestination != null) {
                     val context = LocalContext.current
                     val navController = remember(startDestination) {
@@ -114,7 +117,8 @@ class MainActivity : FragmentActivity() {
                     Surface(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(top = actionBarInsetDp),
+                            .padding(top = actionBarInsetDp)
+                            .padding(bottom = navigationBarInsetDp),
                         color = MaterialTheme.colorScheme.background
                     ) {
                         AppNavHost(
@@ -129,7 +133,8 @@ class MainActivity : FragmentActivity() {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(top = actionBarInsetDp),
+                            .padding(top = actionBarInsetDp)
+                            .padding(bottom = navigationBarInsetDp),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
@@ -219,5 +224,14 @@ class MainActivity : FragmentActivity() {
         }
 
         return actionBarHeight + statusBarHeight
+    }
+
+    private fun resolveBottomNavigationInsetPx(): Int {
+        val navBarResId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        return if (navBarResId > 0) {
+            resources.getDimensionPixelSize(navBarResId)
+        } else {
+            0
+        }
     }
 }

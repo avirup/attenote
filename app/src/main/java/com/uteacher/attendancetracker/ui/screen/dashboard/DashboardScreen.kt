@@ -2,11 +2,13 @@ package com.uteacher.attendancetracker.ui.screen.dashboard
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -22,10 +24,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.uteacher.attendancetracker.domain.model.FabPosition
 import com.uteacher.attendancetracker.ui.screen.dashboard.components.CalendarSection
@@ -37,6 +43,9 @@ import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 import org.koin.androidx.compose.koinViewModel
+import kotlin.math.roundToInt
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 
 @Composable
 fun DashboardScreen(
@@ -50,6 +59,9 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
+    val swipeThresholdPx = with(LocalDensity.current) { 24.dp.toPx() }
+    var accumulatedDrag by remember { mutableFloatStateOf(0f) }
+    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress) {
@@ -194,6 +206,22 @@ fun DashboardScreen(
                         }
                     )
                     .padding(16.dp)
+                    .offset { IntOffset(dragOffsetPx.roundToInt(), 0) }
+                    .draggable(
+                        orientation = Orientation.Horizontal,
+                        state = rememberDraggableState { delta ->
+                            accumulatedDrag += delta
+                            dragOffsetPx = (dragOffsetPx + delta).coerceIn(-72f, 72f)
+                        },
+                        onDragStopped = {
+                            when {
+                                accumulatedDrag <= -swipeThresholdPx -> viewModel.onFabSwipedLeft()
+                                accumulatedDrag >= swipeThresholdPx -> viewModel.onFabSwipedRight()
+                            }
+                            accumulatedDrag = 0f
+                            dragOffsetPx = 0f
+                        }
+                    )
             ) {
                 HamburgerFabMenu(
                     expanded = uiState.fabMenuExpanded,

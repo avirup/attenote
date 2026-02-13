@@ -6,6 +6,7 @@ import com.uteacher.attendancetracker.data.repository.ClassRepository
 import com.uteacher.attendancetracker.data.repository.NoteRepository
 import com.uteacher.attendancetracker.data.repository.SettingsPreferencesRepository
 import com.uteacher.attendancetracker.domain.model.Class
+import com.uteacher.attendancetracker.domain.model.FabPosition
 import com.uteacher.attendancetracker.domain.model.Note
 import com.uteacher.attendancetracker.domain.model.Schedule
 import com.uteacher.attendancetracker.domain.model.ScheduledClassItem
@@ -204,6 +205,24 @@ class DashboardViewModel(
     fun onContentScrolled() {
         if (_uiState.value.fabMenuExpanded) {
             _uiState.update { it.copy(fabMenuExpanded = false) }
+        }
+    }
+
+    fun onFabSwipedLeft() {
+        if (_uiState.value.fabPosition != FabPosition.LEFT) {
+            persistFabPosition(FabPosition.LEFT)
+        }
+    }
+
+    fun onFabSwipedRight() {
+        if (_uiState.value.fabPosition != FabPosition.RIGHT) {
+            persistFabPosition(FabPosition.RIGHT)
+        }
+    }
+
+    private fun persistFabPosition(position: FabPosition) {
+        viewModelScope.launch {
+            settingsRepo.setFabPosition(position)
         }
     }
 }
