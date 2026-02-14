@@ -427,29 +427,35 @@ fun SettingsScreen(
             title = { Text("Adjust Profile Photo") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(uiState.pendingProfileImageUri)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Selected image preview",
-                        contentScale = ContentScale.Fit,
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(260.dp)
-                            .graphicsLayer(rotationZ = (uiState.pendingImageRotationQuarterTurns * 90).toFloat())
-                            .border(1.dp, MaterialTheme.colorScheme.outline)
-                    )
-                    CropOverlayEditor(
-                        left = uiState.cropLeft,
-                        top = uiState.cropTop,
-                        right = uiState.cropRight,
-                        bottom = uiState.cropBottom,
-                        onDragLeft = viewModel::onCropLeftDragged,
-                        onDragTop = viewModel::onCropTopDragged,
-                        onDragRight = viewModel::onCropRightDragged,
-                        onDragBottom = viewModel::onCropBottomDragged
-                    )
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(uiState.pendingProfileImageUri)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Selected image preview",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .matchParentSize()
+                                .graphicsLayer(rotationZ = (uiState.pendingImageRotationQuarterTurns * 90).toFloat())
+                                .border(1.dp, MaterialTheme.colorScheme.outline)
+                        )
+                        CropOverlayEditor(
+                            left = uiState.cropLeft,
+                            top = uiState.cropTop,
+                            right = uiState.cropRight,
+                            bottom = uiState.cropBottom,
+                            onDragLeft = viewModel::onCropLeftDragged,
+                            onDragTop = viewModel::onCropTopDragged,
+                            onDragRight = viewModel::onCropRightDragged,
+                            onDragBottom = viewModel::onCropBottomDragged,
+                            modifier = Modifier.matchParentSize()
+                        )
+                    }
                     Text(
                         text = "Rotation: ${uiState.pendingImageRotationQuarterTurns * 90}°",
                         style = MaterialTheme.typography.bodySmall,
@@ -519,7 +525,8 @@ private fun CropOverlayEditor(
     onDragLeft: (Float) -> Unit,
     onDragTop: (Float) -> Unit,
     onDragRight: (Float) -> Unit,
-    onDragBottom: (Float) -> Unit
+    onDragBottom: (Float) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
@@ -529,9 +536,7 @@ private fun CropOverlayEditor(
     val borderColor = MaterialTheme.colorScheme.primary
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(260.dp)
+        modifier = modifier
             .onSizeChanged { size = it }
     ) {
         if (size.width <= 0 || size.height <= 0) return@Box
