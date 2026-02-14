@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Snackbar
@@ -81,7 +80,7 @@ fun ManageStudentsScreen(
                             text = if (uiState.searchQuery.isNotBlank()) {
                                 "No students found for \"${uiState.searchQuery}\""
                             } else {
-                                "No students.\nTap + to add a student."
+                                "No students found."
                             },
                             modifier = Modifier.padding(16.dp),
                             textAlign = TextAlign.Center,
@@ -120,15 +119,6 @@ fun ManageStudentsScreen(
                     }
                 }
             }
-        }
-
-        FloatingActionButton(
-            onClick = viewModel::onShowAddDialog,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Text(text = "+")
         }
 
         if (!uiState.error.isNullOrBlank()) {
