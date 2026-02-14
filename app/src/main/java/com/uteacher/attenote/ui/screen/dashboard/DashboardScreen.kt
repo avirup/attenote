@@ -91,10 +91,12 @@ fun DashboardScreen(
     }
 
     SideEffect {
-        onSetActionBarPrimaryAction(summaryAction)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            onSetActionBarPrimaryAction(summaryAction)
+        }
     }
 
-    DisposableEffect(onSetActionBarPrimaryAction, lifecycleOwner, summaryAction) {
+    DisposableEffect(lifecycleOwner, summaryAction) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 onSetActionBarPrimaryAction(summaryAction)

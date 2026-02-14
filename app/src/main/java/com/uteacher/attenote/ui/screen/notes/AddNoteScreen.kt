@@ -41,6 +41,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditor
 import com.uteacher.attenote.ui.components.AttenoteDatePickerDialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.uteacher.attenote.ui.navigation.ActionBarPrimaryAction
 import com.uteacher.attenote.ui.screen.notes.components.MediaThumbnail
 import com.uteacher.attenote.ui.screen.notes.components.RichTextToolbar
@@ -62,6 +65,7 @@ fun AddNoteScreen(
     val context = LocalContext.current
     val latestHasUnsavedChanges by rememberUpdatedState(uiState.hasUnsavedChanges)
     val onSaveClick = remember(viewModel) { { viewModel.onSaveClicked() } }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -97,16 +101,31 @@ fun AddNoteScreen(
     }
 
     SideEffect {
-        onSetActionBarPrimaryAction(
-            ActionBarPrimaryAction(
-                title = if (uiState.isSaving) "Saving..." else "Save",
-                enabled = !uiState.isLoading && !uiState.isSaving,
-                onClick = onSaveClick
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            onSetActionBarPrimaryAction(
+                ActionBarPrimaryAction(
+                    title = if (uiState.isSaving) "Saving..." else "Save",
+                    enabled = !uiState.isLoading && !uiState.isSaving,
+                    onClick = onSaveClick
+                )
             )
-        )
+        }
     }
-    DisposableEffect(onSetActionBarPrimaryAction) {
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                onSetActionBarPrimaryAction(
+                    ActionBarPrimaryAction(
+                        title = "Save",
+                        enabled = true,
+                        onClick = onSaveClick
+                    )
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             onSetActionBarPrimaryAction(null)
             if (latestHasUnsavedChanges) {
                 viewModel.onAutoSave()

@@ -25,6 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.uteacher.attenote.ui.navigation.ActionBarPrimaryAction
 import com.uteacher.attenote.ui.screen.attendance.components.AttendanceRecordCard
 import com.uteacher.attenote.ui.theme.component.AttenoteSecondaryButton
@@ -53,6 +56,7 @@ fun TakeAttendanceScreen(
     val latestIsSaving by rememberUpdatedState(uiState.isSaving)
     val latestShouldNavigateBack by rememberUpdatedState(uiState.shouldNavigateBack)
     val latestHasRecords by rememberUpdatedState(uiState.attendanceRecords.isNotEmpty())
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
@@ -78,16 +82,31 @@ fun TakeAttendanceScreen(
     }
 
     SideEffect {
-        onSetActionBarPrimaryAction(
-            ActionBarPrimaryAction(
-                title = if (uiState.isSaving) "Saving..." else "Save",
-                enabled = !uiState.isLoading && !uiState.isSaving,
-                onClick = onSaveClick
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            onSetActionBarPrimaryAction(
+                ActionBarPrimaryAction(
+                    title = if (uiState.isSaving) "Saving..." else "Save",
+                    enabled = !uiState.isLoading && !uiState.isSaving,
+                    onClick = onSaveClick
+                )
             )
-        )
+        }
     }
-    DisposableEffect(onSetActionBarPrimaryAction) {
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                onSetActionBarPrimaryAction(
+                    ActionBarPrimaryAction(
+                        title = "Save",
+                        enabled = true,
+                        onClick = onSaveClick
+                    )
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             onSetActionBarPrimaryAction(null)
             if (!latestIsLoading && !latestIsSaving && !latestShouldNavigateBack && latestHasRecords) {
                 viewModel.onAutoSaveExit()

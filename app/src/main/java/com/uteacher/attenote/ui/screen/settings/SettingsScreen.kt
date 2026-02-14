@@ -63,6 +63,9 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.uteacher.attenote.data.repository.SessionFormat
 import com.uteacher.attenote.domain.model.FabPosition
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.uteacher.attenote.ui.navigation.ActionBarPrimaryAction
 import com.uteacher.attenote.ui.theme.component.AttenoteButton
 import com.uteacher.attenote.ui.theme.component.AttenoteSectionCard
@@ -79,6 +82,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val onSaveClick = remember(viewModel) { { viewModel.onSaveProfileClicked() } }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -117,16 +121,33 @@ fun SettingsScreen(
     }
 
     SideEffect {
-        onSetActionBarPrimaryAction(
-            ActionBarPrimaryAction(
-                title = if (uiState.isLoading) "Saving..." else "Save",
-                enabled = !uiState.isLoading,
-                onClick = onSaveClick
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            onSetActionBarPrimaryAction(
+                ActionBarPrimaryAction(
+                    title = if (uiState.isLoading) "Saving..." else "Save",
+                    enabled = !uiState.isLoading,
+                    onClick = onSaveClick
+                )
             )
-        )
+        }
     }
-    DisposableEffect(onSetActionBarPrimaryAction) {
-        onDispose { onSetActionBarPrimaryAction(null) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                onSetActionBarPrimaryAction(
+                    ActionBarPrimaryAction(
+                        title = "Save",
+                        enabled = true,
+                        onClick = onSaveClick
+                    )
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            onSetActionBarPrimaryAction(null)
+        }
     }
 
     Column(

@@ -37,6 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.uteacher.attenote.ui.navigation.ActionBarPrimaryAction
 import com.uteacher.attenote.ui.components.AttenoteDatePickerDialog
 import com.uteacher.attenote.ui.components.AttenoteTimePickerDialog
@@ -66,6 +69,7 @@ fun CreateClassScreen(
     var semesterMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var dayMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val onSaveClick = remember(viewModel) { { viewModel.onSaveClicked() } }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
@@ -74,22 +78,39 @@ fun CreateClassScreen(
     }
 
     SideEffect {
-        onSetActionBarPrimaryAction(
-            ActionBarPrimaryAction(
-                title = "Save",
-                enabled = !uiState.isLoading,
-                onClick = onSaveClick
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            onSetActionBarPrimaryAction(
+                ActionBarPrimaryAction(
+                    title = "Save",
+                    enabled = !uiState.isLoading,
+                    onClick = onSaveClick
+                )
             )
-        )
+        }
     }
-    DisposableEffect(onSetActionBarPrimaryAction) {
-        onDispose { onSetActionBarPrimaryAction(null) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                onSetActionBarPrimaryAction(
+                    ActionBarPrimaryAction(
+                        title = "Save",
+                        enabled = true,
+                        onClick = onSaveClick
+                    )
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            onSetActionBarPrimaryAction(null)
+        }
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Column(
