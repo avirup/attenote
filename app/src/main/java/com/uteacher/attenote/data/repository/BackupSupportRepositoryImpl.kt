@@ -1,9 +1,12 @@
 package com.uteacher.attenote.data.repository
 
 import android.content.Context
+import android.content.ContentValues
 import android.content.pm.ApplicationInfo
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.uteacher.attenote.data.local.AppDatabase
@@ -28,13 +31,8 @@ class BackupSupportRepositoryImpl(
 ) : BackupSupportRepository {
 
     override suspend fun exportBackup(): RepositoryResult<String> = withContext(Dispatchers.IO) {
-        val downloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-            ?: File(context.filesDir, EXPORTS_DIR)
-        if (!downloadsDir.exists()) {
-            downloadsDir.mkdirs()
-        }
-
-        val zipFile = File(downloadsDir, "attenote_backup_${System.currentTimeMillis()}.zip")
+        val tempDir = File(context.cacheDir, EXPORTS_DIR).apply { mkdirs() }
+        val zipFile = File(tempDir, "attenote_backup_${System.currentTimeMillis()}.zip")
         val checksumByEntry = linkedMapOf<String, String>()
 
         return@withContext try {
@@ -71,10 +69,12 @@ class BackupSupportRepositoryImpl(
                 zip.closeEntry()
             }
 
-            RepositoryResult.Success(zipFile.absolutePath)
+            val publishedLocation = publishBackupToDownloads(zipFile)
+            RepositoryResult.Success(publishedLocation)
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to export backup: ${e.message}")
         } finally {
+            runCatching { zipFile.delete() }
             reopenDatabase()
         }
     }
@@ -239,6 +239,45 @@ class BackupSupportRepositoryImpl(
         }
         zip.closeEntry()
         checksumByEntry[entryName] = sha256(sourceFile)
+    }
+
+    private fun publishBackupToDownloads(tempZip: File): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, tempZip.name)
+                put(MediaStore.Downloads.MIME_TYPE, "application/zip")
+                put(
+                    MediaStore.Downloads.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_DOWNLOADS}/$PUBLIC_EXPORT_DIR"
+                )
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("Failed to create backup file in Downloads")
+
+            try {
+                resolver.openOutputStream(uri)?.use { output ->
+                    tempZip.inputStream().use { input -> input.copyTo(output) }
+                } ?: throw IllegalStateException("Failed to write backup file")
+                val publish = ContentValues().apply {
+                    put(MediaStore.Downloads.IS_PENDING, 0)
+                }
+                resolver.update(uri, publish, null, null)
+                return uri.toString()
+            } catch (e: Exception) {
+                resolver.delete(uri, null, null)
+                throw e
+            }
+        }
+
+        @Suppress("DEPRECATION")
+        val downloadsRoot = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            ?: throw IllegalStateException("Downloads directory unavailable")
+        val outDir = File(downloadsRoot, PUBLIC_EXPORT_DIR).apply { mkdirs() }
+        val outFile = File(outDir, tempZip.name)
+        tempZip.copyTo(outFile, overwrite = true)
+        return outFile.absolutePath
     }
 
     private fun extractBackup(sourceUri: Uri): ExtractedBackup {
@@ -586,6 +625,7 @@ class BackupSupportRepositoryImpl(
         const val SCHEMA_VERSION = 1
 
         const val EXPORTS_DIR = "exports"
+        const val PUBLIC_EXPORT_DIR = "attenote"
 
         const val DATASTORE_DIR = "datastore"
         const val DATASTORE_FILE_NAME = "attenote_preferences.preferences_pb"
