@@ -20,6 +20,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -48,6 +49,10 @@ fun TakeAttendanceScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val onSaveClick = remember(viewModel) { { viewModel.onSaveClicked() } }
+    val latestIsLoading by rememberUpdatedState(uiState.isLoading)
+    val latestIsSaving by rememberUpdatedState(uiState.isSaving)
+    val latestShouldNavigateBack by rememberUpdatedState(uiState.shouldNavigateBack)
+    val latestHasRecords by rememberUpdatedState(uiState.attendanceRecords.isNotEmpty())
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
@@ -82,7 +87,12 @@ fun TakeAttendanceScreen(
         )
     }
     DisposableEffect(onSetActionBarPrimaryAction) {
-        onDispose { onSetActionBarPrimaryAction(null) }
+        onDispose {
+            onSetActionBarPrimaryAction(null)
+            if (!latestIsLoading && !latestIsSaving && !latestShouldNavigateBack && latestHasRecords) {
+                viewModel.onAutoSaveExit()
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

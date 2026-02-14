@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun HamburgerFabMenu(
     expanded: Boolean,
+    alignLeft: Boolean,
     onToggle: () -> Unit,
     onCreateClass: () -> Unit,
     onManageClasses: () -> Unit,
@@ -30,9 +31,10 @@ fun HamburgerFabMenu(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val columnAlignment = if (alignLeft) Alignment.Start else Alignment.End
     androidx.compose.foundation.layout.Column(
         modifier = modifier,
-        horizontalAlignment = Alignment.End,
+        horizontalAlignment = columnAlignment,
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)
     ) {
         AnimatedVisibility(
@@ -41,13 +43,13 @@ fun HamburgerFabMenu(
             exit = fadeOut() + shrinkVertically()
         ) {
             androidx.compose.foundation.layout.Column(
-                horizontalAlignment = Alignment.End,
+                horizontalAlignment = columnAlignment,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FabMenuItem(text = "Create Class", onClick = onCreateClass)
-                FabMenuItem(text = "Edit Class", onClick = onManageClasses)
-                FabMenuItem(text = "Manage Students", onClick = onManageStudents)
-                FabMenuItem(text = "Settings", onClick = onSettings)
+                FabMenuItem(text = "Create Class", onClick = onCreateClass, alignLeft = alignLeft)
+                FabMenuItem(text = "Edit Class", onClick = onManageClasses, alignLeft = alignLeft)
+                FabMenuItem(text = "Manage Students", onClick = onManageStudents, alignLeft = alignLeft)
+                FabMenuItem(text = "Settings", onClick = onSettings, alignLeft = alignLeft)
             }
         }
 
@@ -67,28 +69,54 @@ fun HamburgerFabMenu(
 private fun FabMenuItem(
     text: String,
     onClick: () -> Unit,
+    alignLeft: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier
-                .background(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(4.dp)
-                )
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-        SmallFloatingActionButton(
-            onClick = onClick,
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
+    if (alignLeft) {
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "+")
+            SmallFloatingActionButton(
+                onClick = onClick,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Text(text = "+")
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier
+                    .background(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+    } else {
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier
+                    .background(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+            SmallFloatingActionButton(
+                onClick = onClick,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Text(text = "+")
+            }
         }
     }
 }

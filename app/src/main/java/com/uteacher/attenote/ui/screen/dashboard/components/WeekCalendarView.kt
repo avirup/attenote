@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -65,7 +65,7 @@ fun WeekCalendarView(
             }
             IconButton(onClick = onExpand) {
                 Icon(
-                    imageVector = Icons.Default.KeyboardArrowDown,
+                    imageVector = Icons.Default.KeyboardArrowUp,
                     contentDescription = "Expand calendar"
                 )
             }

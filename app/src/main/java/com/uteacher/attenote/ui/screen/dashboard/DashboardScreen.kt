@@ -298,6 +298,7 @@ fun DashboardScreen(
         ) {
             HamburgerFabMenu(
                 expanded = uiState.fabMenuExpanded,
+                alignLeft = uiState.fabPosition == FabPosition.LEFT,
                 onToggle = viewModel::onToggleFabMenu,
                 onCreateClass = {
                     onNavigateToCreateClass()

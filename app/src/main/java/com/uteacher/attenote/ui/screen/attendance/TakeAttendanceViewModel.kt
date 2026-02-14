@@ -196,19 +196,32 @@ class TakeAttendanceViewModel(
     }
 
     fun onSaveClicked() {
+        saveAttendance(markSuccess = true)
+    }
+
+    fun onAutoSaveExit() {
+        saveAttendance(markSuccess = false)
+    }
+
+    private fun saveAttendance(markSuccess: Boolean) {
         val state = _uiState.value
         val date = state.date
 
-        if (date == null) {
-            _uiState.update { it.copy(error = "Invalid date") }
-            return
-        }
-        if (state.attendanceRecords.isEmpty()) {
-            _uiState.update { it.copy(error = "No students to save attendance for") }
+        if (state.isLoading || state.isSaving || state.attendanceRecords.isEmpty()) {
             return
         }
 
-        _uiState.update { it.copy(isSaving = true, error = null) }
+        if (date == null) {
+            if (markSuccess) {
+                _uiState.update { it.copy(error = "Invalid date") }
+            }
+            return
+        }
+
+        _uiState.update {
+            if (markSuccess) it.copy(isSaving = true, error = null)
+            else it.copy(isSaving = true)
+        }
 
         viewModelScope.launch {
             try {
@@ -234,26 +247,34 @@ class TakeAttendanceViewModel(
                         _uiState.update {
                             it.copy(
                                 isSaving = false,
-                                saveSuccess = true
+                                saveSuccess = markSuccess
                             )
                         }
                     }
 
                     is RepositoryResult.Error -> {
-                        _uiState.update {
-                            it.copy(
-                                isSaving = false,
-                                error = result.message
-                            )
+                        _uiState.update { current ->
+                            if (markSuccess) {
+                                current.copy(
+                                    isSaving = false,
+                                    error = result.message
+                                )
+                            } else {
+                                current.copy(isSaving = false)
+                            }
                         }
                     }
                 }
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isSaving = false,
-                        error = "Failed to save attendance: ${e.message ?: "Unknown error"}"
-                    )
+                _uiState.update { current ->
+                    if (markSuccess) {
+                        current.copy(
+                            isSaving = false,
+                            error = "Failed to save attendance: ${e.message ?: "Unknown error"}"
+                        )
+                    } else {
+                        current.copy(isSaving = false)
+                    }
                 }
             }
         }
