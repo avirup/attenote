@@ -444,13 +444,20 @@ class EditClassViewModel(
         }
 
         viewModelScope.launch {
+            var linkedExistingCount = 0
+            var createdNewCount = 0
+            var skippedCount = 0
+
             rows.forEach { row ->
-                if (row.alreadyExists) {
-                    val existing = findExistingStudent(row.name, row.registrationNumber)
-                    if (existing != null) {
-                        studentRepository.addStudentToClass(classId, existing.studentId)
-                        studentRepository.updateStudentActiveInClass(classId, existing.studentId, true)
-                    }
+                val existing = studentRepository.findStudentByNameAndRegistration(
+                    name = row.name,
+                    registrationNumber = row.registrationNumber
+                )
+
+                if (existing != null) {
+                    studentRepository.addStudentToClass(classId, existing.studentId)
+                    studentRepository.updateStudentActiveInClass(classId, existing.studentId, true)
+                    linkedExistingCount += 1
                 } else {
                     val createResult = studentRepository.createStudent(
                         Student(
@@ -469,20 +476,36 @@ class EditClassViewModel(
                         is RepositoryResult.Success -> {
                             studentRepository.addStudentToClass(classId, createResult.data)
                             studentRepository.updateStudentActiveInClass(classId, createResult.data, true)
+                            createdNewCount += 1
                         }
 
                         is RepositoryResult.Error -> {
-                            val existing = findExistingStudent(row.name, row.registrationNumber)
-                            if (existing != null) {
-                                studentRepository.addStudentToClass(classId, existing.studentId)
+                            val existingAfterFailure = studentRepository.findStudentByNameAndRegistration(
+                                name = row.name,
+                                registrationNumber = row.registrationNumber
+                            )
+                            if (existingAfterFailure != null) {
+                                studentRepository.addStudentToClass(classId, existingAfterFailure.studentId)
                                 studentRepository.updateStudentActiveInClass(
                                     classId,
-                                    existing.studentId,
+                                    existingAfterFailure.studentId,
                                     true
                                 )
+                                linkedExistingCount += 1
+                            } else {
+                                skippedCount += 1
                             }
                         }
                     }
+                }
+            }
+
+            val message = buildString {
+                append("CSV import completed")
+                append(" • Linked existing: $linkedExistingCount")
+                append(" • Created new: $createdNewCount")
+                if (skippedCount > 0) {
+                    append(" • Skipped: $skippedCount")
                 }
             }
 
@@ -491,7 +514,7 @@ class EditClassViewModel(
                     showCsvImportDialog = false,
                     csvPreviewData = emptyList(),
                     csvImportError = null,
-                    operationMessage = "CSV import completed"
+                    operationMessage = message
                 )
             }
         }
