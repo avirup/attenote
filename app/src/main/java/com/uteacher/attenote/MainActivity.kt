@@ -3,6 +3,7 @@ package com.uteacher.attenote
 import android.app.ActionBar
 import android.app.AlertDialog
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
@@ -10,6 +11,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup
 import android.widget.ImageView
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.biometric.BiometricPrompt
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
@@ -166,12 +168,35 @@ class MainActivity : FragmentActivity() {
         menu.clear()
         val action = actionBarPrimaryAction
         if (action != null) {
-            menu.add(Menu.NONE, MENU_ITEM_PRIMARY_ACTION, Menu.NONE, action.title).apply {
-                action.iconResId?.let { setIcon(it) }
-                contentDescription = action.contentDescription
-                tooltipText = action.contentDescription
-                setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-                isEnabled = action.enabled
+            val item = menu.add(Menu.NONE, MENU_ITEM_PRIMARY_ACTION, Menu.NONE, action.title)
+            item.contentDescription = action.contentDescription
+            item.tooltipText = action.contentDescription
+            item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            item.isEnabled = action.enabled
+
+            val iconSizePx = dpToPx(18f)
+            val horizontalPaddingPx = dpToPx(2f)
+            action.iconResId?.let { iconResId ->
+                val actionIcon = AppCompatResources.getDrawable(this, iconResId)?.mutate()?.apply {
+                    setBounds(0, 0, iconSizePx, iconSizePx)
+                }
+                val iconView = ImageView(this).apply {
+                    setImageDrawable(actionIcon)
+                    contentDescription = action.contentDescription
+                    isEnabled = action.enabled
+                    alpha = if (action.enabled) 1f else 0.45f
+                    setPadding(horizontalPaddingPx, 0, horizontalPaddingPx, 0)
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                    setOnClickListener {
+                        if (action.enabled) {
+                            action.onClick.invoke()
+                        }
+                    }
+                }
+                item.actionView = iconView
             }
         }
         return super.onPrepareOptionsMenu(menu)
@@ -243,9 +268,20 @@ class MainActivity : FragmentActivity() {
 
     private fun ensureActionBarBranding(bar: ActionBar) {
         bar.setBackgroundDrawable(ColorDrawable(BRAND_PRIMARY_COLOR_INT))
-        bar.setLogo(R.drawable.attenote_title_icon)
+        bar.setLogo(createSizedActionBarLogo())
         bar.setDisplayUseLogoEnabled(true)
         bar.setDisplayShowHomeEnabled(true)
+    }
+
+    private fun createSizedActionBarLogo(): Drawable? {
+        val iconSizePx = dpToPx(18f)
+        return AppCompatResources.getDrawable(this, R.drawable.attenote_title_icon)?.mutate()?.apply {
+            setBounds(0, 0, iconSizePx, iconSizePx)
+        }
+    }
+
+    private fun dpToPx(value: Float): Int {
+        return (value * resources.displayMetrics.density).roundToInt()
     }
 
     private fun createDashboardWordmarkView(): ImageView {
