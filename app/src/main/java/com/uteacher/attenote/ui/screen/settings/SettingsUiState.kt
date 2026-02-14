@@ -34,5 +34,12 @@ data class SettingsUiState(
     val profileSaveSuccess: Boolean = false,
     val profileSaveError: String? = null,
 
-    val showImagePicker: Boolean = false
+    val showImagePicker: Boolean = false,
+    val showImageAdjustDialog: Boolean = false,
+    val pendingProfileImageUri: Uri? = null,
+    val pendingImageRotationQuarterTurns: Int = 0,
+    val cropLeft: Float = 0.08f,
+    val cropTop: Float = 0.08f,
+    val cropRight: Float = 0.92f,
+    val cropBottom: Float = 0.92f
 )

@@ -80,6 +80,7 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation(libs.androidx.biometric)
     implementation(libs.kotlin.csv.jvm)
     implementation(libs.coil.compose)

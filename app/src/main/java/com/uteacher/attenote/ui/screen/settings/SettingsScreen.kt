@@ -7,9 +7,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -37,12 +40,24 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -405,6 +420,82 @@ fun SettingsScreen(
             }
         )
     }
+
+    if (uiState.showImageAdjustDialog && uiState.pendingProfileImageUri != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::onImageAdjustmentDismissed,
+            title = { Text("Adjust Profile Photo") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(uiState.pendingProfileImageUri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Selected image preview",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                            .graphicsLayer(rotationZ = (uiState.pendingImageRotationQuarterTurns * 90).toFloat())
+                            .border(1.dp, MaterialTheme.colorScheme.outline)
+                    )
+                    CropOverlayEditor(
+                        left = uiState.cropLeft,
+                        top = uiState.cropTop,
+                        right = uiState.cropRight,
+                        bottom = uiState.cropBottom,
+                        onDragLeft = viewModel::onCropLeftDragged,
+                        onDragTop = viewModel::onCropTopDragged,
+                        onDragRight = viewModel::onCropRightDragged,
+                        onDragBottom = viewModel::onCropBottomDragged
+                    )
+                    Text(
+                        text = "Rotation: ${uiState.pendingImageRotationQuarterTurns * 90}°",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = viewModel::onRotateImageLeft,
+                            enabled = !uiState.isLoading,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Rotate Left")
+                        }
+                        OutlinedButton(
+                            onClick = viewModel::onRotateImageRight,
+                            enabled = !uiState.isLoading,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Rotate Right")
+                        }
+                    }
+                    Text(
+                        text = "Drag crop borders to adjust the profile photo framing.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::onImageAdjustmentConfirmed,
+                    enabled = !uiState.isLoading
+                ) {
+                    Text("Apply")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = viewModel::onImageAdjustmentDismissed,
+                    enabled = !uiState.isLoading
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 private fun restartApp(context: android.content.Context) {
@@ -417,4 +508,105 @@ private fun restartApp(context: android.content.Context) {
         context.startActivity(launchIntent)
     }
     (context as? Activity)?.finishAffinity()
+}
+
+@Composable
+private fun CropOverlayEditor(
+    left: Float,
+    top: Float,
+    right: Float,
+    bottom: Float,
+    onDragLeft: (Float) -> Unit,
+    onDragTop: (Float) -> Unit,
+    onDragRight: (Float) -> Unit,
+    onDragBottom: (Float) -> Unit
+) {
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
+    val strokePx = with(density) { 2.dp.toPx() }
+    val handleSizePx = with(density) { 22.dp.toPx() }
+    val handleSizeDp = 22.dp
+    val borderColor = MaterialTheme.colorScheme.primary
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(260.dp)
+            .onSizeChanged { size = it }
+    ) {
+        if (size.width <= 0 || size.height <= 0) return@Box
+
+        val leftPx = left * size.width
+        val topPx = top * size.height
+        val rightPx = right * size.width
+        val bottomPx = bottom * size.height
+
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .drawBehind {
+                    drawRect(
+                        color = borderColor,
+                        topLeft = Offset(leftPx, topPx),
+                        size = Size(
+                            width = (rightPx - leftPx).coerceAtLeast(1f),
+                            height = (bottomPx - topPx).coerceAtLeast(1f)
+                        ),
+                        style = Stroke(strokePx)
+                    )
+                }
+        )
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset((leftPx - handleSizePx / 2f).toInt(), topPx.toInt()) }
+                .width(handleSizeDp)
+                .height(with(density) { ((bottomPx - topPx).coerceAtLeast(handleSizePx)).toDp() })
+                .pointerInput(size) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        onDragLeft(dragAmount.x / size.width.toFloat())
+                    }
+                }
+        )
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset((rightPx - handleSizePx / 2f).toInt(), topPx.toInt()) }
+                .width(handleSizeDp)
+                .height(with(density) { ((bottomPx - topPx).coerceAtLeast(handleSizePx)).toDp() })
+                .pointerInput(size) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        onDragRight(dragAmount.x / size.width.toFloat())
+                    }
+                }
+        )
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(leftPx.toInt(), (topPx - handleSizePx / 2f).toInt()) }
+                .width(with(density) { ((rightPx - leftPx).coerceAtLeast(handleSizePx)).toDp() })
+                .height(handleSizeDp)
+                .pointerInput(size) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        onDragTop(dragAmount.y / size.height.toFloat())
+                    }
+                }
+        )
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(leftPx.toInt(), (bottomPx - handleSizePx / 2f).toInt()) }
+                .width(with(density) { ((rightPx - leftPx).coerceAtLeast(handleSizePx)).toDp() })
+                .height(handleSizeDp)
+                .pointerInput(size) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        onDragBottom(dragAmount.y / size.height.toFloat())
+                    }
+                }
+        )
+    }
 }
