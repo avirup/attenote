@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.uteacher.attendancetracker"
+    namespace = "com.uteacher.attenote"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.uteacher.attendancetracker"
+        applicationId = "com.uteacher.attenote"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
