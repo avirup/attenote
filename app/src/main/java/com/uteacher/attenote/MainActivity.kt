@@ -2,6 +2,7 @@ package com.uteacher.attenote
 
 import android.app.ActionBar
 import android.app.AlertDialog
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
@@ -62,6 +63,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, true)
+        window.statusBarColor = BRAND_PRIMARY_COLOR_INT
         applyActionBarState(title = "Splash", showBack = false)
 
         lifecycleScope.launch {
@@ -240,6 +242,7 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun ensureActionBarBranding(bar: ActionBar) {
+        bar.setBackgroundDrawable(ColorDrawable(BRAND_PRIMARY_COLOR_INT))
         bar.setLogo(R.drawable.attenote_title_icon)
         bar.setDisplayUseLogoEnabled(true)
         bar.setDisplayShowHomeEnabled(true)
@@ -279,5 +282,6 @@ class MainActivity : FragmentActivity() {
         private const val STARTUP_TAG = "StartupGate"
         private const val MENU_ITEM_PRIMARY_ACTION = 1001
         private const val DASHBOARD_ACTION_BAR_TITLE = "Dashboard"
+        private const val BRAND_PRIMARY_COLOR_INT = -10793744 // #5B4CF0
     }
 }

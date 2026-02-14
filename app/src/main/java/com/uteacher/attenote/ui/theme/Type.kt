@@ -6,6 +6,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 val AttenoteTypography = Typography(
+    headlineSmall = TextStyle(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 22.sp,
+        lineHeight = 30.sp
+    ),
     displayMedium = TextStyle(
         fontWeight = FontWeight.SemiBold,
         fontSize = 44.sp,
@@ -19,8 +24,8 @@ val AttenoteTypography = Typography(
     ),
     titleMedium = TextStyle(
         fontWeight = FontWeight.Medium,
-        fontSize = 18.sp,
-        lineHeight = 24.sp
+        fontSize = 16.sp,
+        lineHeight = 22.sp
     ),
     titleSmall = TextStyle(
         fontWeight = FontWeight.Medium,

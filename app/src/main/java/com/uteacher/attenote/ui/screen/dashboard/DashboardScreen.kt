@@ -30,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -127,7 +126,7 @@ fun DashboardScreen(
             item {
                 Text(
                     text = formatDateHeader(uiState.selectedDate),
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.headlineSmall
                 )
             }
 
@@ -142,7 +141,7 @@ fun DashboardScreen(
                         )
                     } else {
                         androidx.compose.foundation.layout.Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             uiState.scheduledClasses.forEach { scheduledClass ->
                                 ScheduledClassCard(
@@ -163,7 +162,7 @@ fun DashboardScreen(
 
             item {
                 androidx.compose.foundation.layout.Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -193,7 +192,7 @@ fun DashboardScreen(
                             )
                         } else {
                             androidx.compose.foundation.layout.Column(
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 uiState.notes.forEach { note ->
                                     NoteCard(
