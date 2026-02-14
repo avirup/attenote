@@ -1,6 +1,6 @@
 # Business Requirements Document (BRD)
 
-Date: February 13, 2026
+Date: February 14, 2026
 Project: attenote
 Platform: Android (offline-first)
 
@@ -30,6 +30,10 @@ Enable a teacher to run daily class operations quickly on a mobile device, witho
 - Attendance capture per scheduled class/date with lesson notes.
 - Rich-text daily notes with image attachments.
 - Local backup export/import and interrupted-restore recovery.
+- Daily summary timeline screen that merges attendance and notes with newest-first ordering.
+- Daily summary search across note text and attendance records.
+- CSV import template download from class roster CSV import dialog.
+- Profile photo adjustment in settings (rotate + freeform crop rectangle).
 
 ## 6. Out of Scope (Current Release)
 - Cloud sync and multi-user collaboration.
@@ -46,6 +50,10 @@ Enable a teacher to run daily class operations quickly on a mobile device, witho
 - `BR-FR-07` User must be able to author and edit daily rich-text notes with optional images.
 - `BR-FR-08` User must be able to export backup zip and import backup zip with clear confirmation.
 - `BR-FR-09` If biometric lock is enabled, access must require device credential/biometric.
+- `BR-FR-10` Dashboard must expose a daily summary action in the top bar and open a date-grouped summary screen.
+- `BR-FR-11` Daily summary must allow edit navigation for both attendance sessions and notes.
+- `BR-FR-12` CSV roster import must link existing students to class and create only missing students.
+- `BR-FR-13` Attendance state changes on the Take Attendance screen must persist on exit (autosave), not only on explicit save.
 
 ## 8. UX and Consistency Requirements
 - `BR-UX-01` All screens must use one shared design system (theme tokens, typography, component patterns).
@@ -53,6 +61,9 @@ Enable a teacher to run daily class operations quickly on a mobile device, witho
 - `BR-UX-03` Top app bar patterns and back navigation behavior must be consistent on all feature screens.
 - `BR-UX-04` Android system navigation buttons must remain visible across the app.
 - `BR-UX-05` Critical actions (Save, Export, Import, Attendance Save) must provide clear success/error feedback.
+- `BR-UX-06` Dashboard calendar must be bottom-anchored with swipe up/down expand-collapse and day-step arrows in collapsed mode.
+- `BR-UX-07` Dashboard note cards must show both `Created on` and `Updated on` metadata.
+- `BR-UX-08` Top app bar branding uses the attenote icon + wordmark treatment on Dashboard.
 
 ## 9. Device-Testable Delivery Requirement
 - `BR-DEL-01` Every implementation step must end with a runnable debug build and physical-device validation.

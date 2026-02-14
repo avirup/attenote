@@ -1,5 +1,6 @@
 package com.uteacher.attenote.data.repository
 
+import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import com.uteacher.attenote.data.local.AppDatabase
 import com.uteacher.attenote.data.local.dao.AttendanceRecordDao
@@ -52,24 +53,33 @@ class AttendanceRepositoryImpl(
             val normalizedLessonNotes = lessonNotes
                 ?.let(InputNormalizer::normalize)
                 ?.ifBlank { null }
+            val dateKey = date.toString()
 
             val sessionId = db.withTransaction {
-                val existingSession = sessionDao.findSession(classId, scheduleId, date.toString())
+                val existingSession = sessionDao.findSession(classId, scheduleId, dateKey)
 
                 val resolvedSessionId = if (existingSession != null) {
                     sessionDao.updateSession(existingSession.copy(lessonNotes = normalizedLessonNotes))
                     existingSession.sessionId
                 } else {
-                    sessionDao.insertSession(
-                        AttendanceSession(
-                            sessionId = 0L,
-                            classId = classId,
-                            scheduleId = scheduleId,
-                            date = date,
-                            lessonNotes = normalizedLessonNotes,
-                            createdAt = LocalDate.now()
-                        ).toEntity()
-                    )
+                    try {
+                        sessionDao.insertSession(
+                            AttendanceSession(
+                                sessionId = 0L,
+                                classId = classId,
+                                scheduleId = scheduleId,
+                                date = date,
+                                lessonNotes = normalizedLessonNotes,
+                                createdAt = LocalDate.now()
+                            ).toEntity()
+                        )
+                    } catch (_: SQLiteConstraintException) {
+                        // Another concurrent save created the unique session first.
+                        val racedSession = sessionDao.findSession(classId, scheduleId, dateKey)
+                            ?: throw IllegalStateException("Failed to resolve attendance session after conflict")
+                        sessionDao.updateSession(racedSession.copy(lessonNotes = normalizedLessonNotes))
+                        racedSession.sessionId
+                    }
                 }
 
                 recordDao.deleteAllRecordsForSession(resolvedSessionId)

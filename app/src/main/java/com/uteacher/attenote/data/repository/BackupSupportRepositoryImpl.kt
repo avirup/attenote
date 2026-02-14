@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.uteacher.attenote.data.local.AppDatabase
@@ -129,14 +130,15 @@ class BackupSupportRepositoryImpl(
             cleanupAfterSuccessfulRestore()
             RepositoryResult.Success(Unit)
         } catch (e: Exception) {
+            val journalAtFailure = readRestoreJournal()
             runCatching {
-                rollbackFromBackup(readRestoreJournal()?.backupPaths.orEmpty())
+                rollbackFromBackup(journalAtFailure?.backupPaths.orEmpty())
                 writeRestoreJournal(
                     RestoreJournal(
                         phase = RestorePhase.ROLLBACK_ATTEMPTED,
                         timestamp = System.currentTimeMillis(),
                         stagedPaths = emptyMap(),
-                        backupPaths = readRestoreJournal()?.backupPaths.orEmpty()
+                        backupPaths = journalAtFailure?.backupPaths.orEmpty()
                     )
                 )
             }
@@ -158,8 +160,9 @@ class BackupSupportRepositoryImpl(
                     }
 
                     RestorePhase.SWAPPING -> {
-                        // Best-effort rollback to pre-import data.
-                        rollbackFromBackup(journal.backupPaths)
+                        // Prefer reverting to backup_old state whenever available.
+                        val backupPaths = journal.backupPaths.ifEmpty { discoverBackupPathsFromDisk() }
+                        rollbackFromBackup(backupPaths)
                         clearStagingDirectory()
                         clearBackupOldDirectory()
                     }
@@ -353,7 +356,7 @@ class BackupSupportRepositoryImpl(
         }
         val manifestVariant = actualManifest.optString("buildVariant")
         if (manifestVariant.isNotBlank() && manifestVariant != expectedVariant) {
-            throw IllegalStateException("Backup build variant mismatch: $manifestVariant")
+            Log.w(TAG, "Backup build variant mismatch ($manifestVariant), continuing restore")
         }
 
         val schemaVersion = actualManifest.optInt("schemaVersion", -1)
@@ -363,10 +366,21 @@ class BackupSupportRepositoryImpl(
 
         val checksumsJson = actualManifest.optJSONObject("fileChecksums")
             ?: throw IllegalStateException("Manifest missing fileChecksums")
+        REQUIRED_MANIFEST_ENTRIES.forEach { requiredEntry ->
+            if (!checksumsJson.has(requiredEntry)) {
+                throw IllegalStateException("Manifest missing required entry: $requiredEntry")
+            }
+        }
+
+        val manifestEntries = mutableSetOf<String>()
         val keys = checksumsJson.keys()
         while (keys.hasNext()) {
             val entry = keys.next()
+            manifestEntries += entry
             val expectedChecksum = checksumsJson.optString(entry)
+            if (expectedChecksum.isBlank()) {
+                throw IllegalStateException("Manifest checksum missing for $entry")
+            }
             val extractedFile = extractedFiles[entry]
                 ?: throw IllegalStateException("Manifest references missing file: $entry")
             val actualChecksum = sha256(extractedFile)
@@ -374,6 +388,12 @@ class BackupSupportRepositoryImpl(
                 throw IllegalStateException("Checksum mismatch for $entry")
             }
         }
+
+        extractedFiles.keys
+            .filterNot(manifestEntries::contains)
+            .forEach { entry ->
+                Log.w(TAG, "Ignoring extra backup entry not present in manifest: $entry")
+            }
     }
 
     private fun moveLiveToBackupOld(): Map<String, String> {
@@ -557,6 +577,21 @@ class BackupSupportRepositoryImpl(
 
     private fun backupOldRoot(): File = File(context.filesDir, BACKUP_OLD_DIR)
 
+    private fun discoverBackupPathsFromDisk(): Map<String, String> {
+        val backupRoot = backupOldRoot()
+        if (!backupRoot.exists()) return emptyMap()
+        val discovered = mutableMapOf<String, String>()
+        val backupDb = File(backupRoot, "db/${AppDatabase.DATABASE_NAME}")
+        if (backupDb.exists()) discovered[KEY_DB] = backupDb.absolutePath
+        val backupDataStore = File(backupRoot, DATASTORE_DIR)
+        if (backupDataStore.exists()) discovered[KEY_DATASTORE] = backupDataStore.absolutePath
+        val backupImages = File(backupRoot, APP_IMAGES_DIR)
+        if (backupImages.exists()) discovered[KEY_APP_IMAGES] = backupImages.absolutePath
+        val backupNoteMedia = File(backupRoot, NOTE_MEDIA_DIR)
+        if (backupNoteMedia.exists()) discovered[KEY_NOTE_MEDIA] = backupNoteMedia.absolutePath
+        return discovered
+    }
+
     @Suppress("DEPRECATION")
     private fun appVersionName(): String {
         return runCatching {
@@ -622,6 +657,7 @@ class BackupSupportRepositoryImpl(
     }
 
     private companion object {
+        const val TAG = "BackupSupportRepo"
         const val SCHEMA_VERSION = 1
 
         const val EXPORTS_DIR = "exports"
@@ -644,5 +680,6 @@ class BackupSupportRepositoryImpl(
         const val KEY_DATASTORE = "datastore"
         const val KEY_APP_IMAGES = "app_images"
         const val KEY_NOTE_MEDIA = "note_media"
+        val REQUIRED_MANIFEST_ENTRIES = setOf(DB_BACKUP_ENTRY)
     }
 }
