@@ -84,6 +84,8 @@ fun DashboardScreen(
             title = "Summary",
             iconResId = R.drawable.ic_daily_summary_24,
             contentDescription = "Open summary",
+            iconSizeDp = 18f,
+            endPaddingDp = 6f,
             onClick = onNavigateToDailySummary
         )
     }

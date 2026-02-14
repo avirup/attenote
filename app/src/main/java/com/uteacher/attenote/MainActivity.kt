@@ -2,15 +2,19 @@ package com.uteacher.attenote
 
 import android.app.ActionBar
 import android.app.AlertDialog
+import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.biometric.BiometricPrompt
 import androidx.activity.compose.setContent
@@ -58,9 +62,11 @@ class MainActivity : FragmentActivity() {
     private var navigateUpHandler: (() -> Boolean)? = null
     private var lastActionBarTitle: String? = null
     private var lastActionBarBackState: Boolean? = null
-    private var lastDashboardBrandingState: Boolean? = null
+    private var lastBrandedHeaderState: Boolean? = null
     private var actionBarPrimaryAction: ActionBarPrimaryAction? = null
-    private var dashboardWordmarkView: ImageView? = null
+    private var actionBarBrandView: LinearLayout? = null
+    private var actionBarBrandWordmarkView: ImageView? = null
+    private var actionBarBrandTitleView: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -174,8 +180,8 @@ class MainActivity : FragmentActivity() {
             item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             item.isEnabled = action.enabled
 
-            val iconSizePx = dpToPx(18f)
-            val horizontalPaddingPx = dpToPx(2f)
+            val iconSizePx = dpToPx(action.iconSizeDp ?: 16f)
+            val actionEndPaddingPx = dpToPx(action.endPaddingDp)
             action.iconResId?.let { iconResId ->
                 val actionIcon = AppCompatResources.getDrawable(this, iconResId)?.mutate()?.apply {
                     setBounds(0, 0, iconSizePx, iconSizePx)
@@ -185,10 +191,12 @@ class MainActivity : FragmentActivity() {
                     contentDescription = action.contentDescription
                     isEnabled = action.enabled
                     alpha = if (action.enabled) 1f else 0.45f
-                    setPadding(horizontalPaddingPx, 0, horizontalPaddingPx, 0)
+                    setPadding(0, 0, actionEndPaddingPx, 0)
+                    minimumWidth = 0
+                    minimumHeight = 0
                     layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
+                        dpToPx(20f) + actionEndPaddingPx,
+                        dpToPx(20f)
                     )
                     setOnClickListener {
                         if (action.enabled) {
@@ -243,41 +251,94 @@ class MainActivity : FragmentActivity() {
     private fun applyActionBarState(title: String, showBack: Boolean) {
         val bar = actionBar ?: return
         ensureActionBarBranding(bar)
+        ensureActionBarBrandView(bar)
 
-        val isDashboard = title == DASHBOARD_ACTION_BAR_TITLE
-        if (lastDashboardBrandingState != isDashboard) {
-            bar.setDisplayShowCustomEnabled(isDashboard)
-            bar.setDisplayShowTitleEnabled(!isDashboard)
-            if (isDashboard) {
-                bar.customView = dashboardWordmarkView ?: createDashboardWordmarkView().also {
-                    dashboardWordmarkView = it
-                }
-            }
-            lastDashboardBrandingState = isDashboard
+        val isBrandedHeader = title == DASHBOARD_ACTION_BAR_TITLE || title == SPLASH_ACTION_BAR_TITLE
+        if (lastBrandedHeaderState != isBrandedHeader) {
+            actionBarBrandWordmarkView?.visibility = if (isBrandedHeader) View.VISIBLE else View.GONE
+            actionBarBrandTitleView?.visibility = if (isBrandedHeader) View.GONE else View.VISIBLE
+            lastBrandedHeaderState = isBrandedHeader
         }
 
-        if (!isDashboard && lastActionBarTitle != title) {
-            bar.title = title
+        if (!isBrandedHeader && lastActionBarTitle != title) {
+            actionBarBrandTitleView?.text = title
             lastActionBarTitle = title
         }
         if (lastActionBarBackState != showBack) {
             bar.setDisplayHomeAsUpEnabled(showBack)
+            bar.setDisplayShowHomeEnabled(false)
             lastActionBarBackState = showBack
         }
     }
 
     private fun ensureActionBarBranding(bar: ActionBar) {
         bar.setBackgroundDrawable(ColorDrawable(BRAND_PRIMARY_COLOR_INT))
-        bar.setLogo(createSizedActionBarLogo())
-        bar.setDisplayUseLogoEnabled(true)
-        bar.setDisplayShowHomeEnabled(true)
+        bar.setDisplayUseLogoEnabled(false)
+        bar.setDisplayShowTitleEnabled(false)
+        bar.setDisplayShowCustomEnabled(true)
     }
 
-    private fun createSizedActionBarLogo(): Drawable? {
-        val iconSizePx = dpToPx(18f)
-        return AppCompatResources.getDrawable(this, R.drawable.attenote_title_icon)?.mutate()?.apply {
-            setBounds(0, 0, iconSizePx, iconSizePx)
+    private fun ensureActionBarBrandView(bar: ActionBar) {
+        if (actionBarBrandView != null) {
+            if (bar.customView !== actionBarBrandView) {
+                bar.customView = actionBarBrandView
+            }
+            return
         }
+        val iconSizePx = dpToPx(19f)
+        val spacingPx = dpToPx(4f)
+        val wordmarkHeightPx = dpToPx(14f)
+
+        val iconView = ImageView(this).apply {
+            setImageResource(R.drawable.attenote_title_icon)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = LinearLayout.LayoutParams(iconSizePx, iconSizePx)
+        }
+
+        val wordmarkView = ImageView(this).apply {
+            setImageResource(R.drawable.attenote_wordmark_title)
+            contentDescription = "attenote"
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_START
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                wordmarkHeightPx
+            ).apply {
+                marginStart = spacingPx
+            }
+        }
+
+        val titleView = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            maxLines = 1
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                marginStart = spacingPx
+            }
+        }
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dpToPx(2f), 0, dpToPx(2f), 0)
+            addView(iconView)
+            addView(wordmarkView)
+            addView(titleView)
+            layoutParams = ActionBar.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.START or Gravity.CENTER_VERTICAL
+            )
+        }
+
+        actionBarBrandView = container
+        actionBarBrandWordmarkView = wordmarkView
+        actionBarBrandTitleView = titleView
+        bar.customView = container
     }
 
     private fun dpToPx(value: Float): Int {
@@ -305,6 +366,8 @@ class MainActivity : FragmentActivity() {
             previous?.title == action?.title &&
             previous?.iconResId == action?.iconResId &&
             previous?.contentDescription == action?.contentDescription &&
+            previous?.iconSizeDp == action?.iconSizeDp &&
+            previous?.endPaddingDp == action?.endPaddingDp &&
             previous?.enabled == action?.enabled &&
             previous?.onClick === action?.onClick
         ) {
@@ -318,6 +381,7 @@ class MainActivity : FragmentActivity() {
         private const val STARTUP_TAG = "StartupGate"
         private const val MENU_ITEM_PRIMARY_ACTION = 1001
         private const val DASHBOARD_ACTION_BAR_TITLE = "Dashboard"
+        private const val SPLASH_ACTION_BAR_TITLE = "Splash"
         private const val BRAND_PRIMARY_COLOR_INT = -10793744 // #5B4CF0
     }
 }

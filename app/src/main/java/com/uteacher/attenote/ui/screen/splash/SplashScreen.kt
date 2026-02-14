@@ -49,12 +49,12 @@ fun SplashScreen(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.attenote_title_icon),
                     contentDescription = "attenote icon",
-                    modifier = Modifier.size(38.dp)
+                    modifier = Modifier.size(30.dp)
                 )
                 Text(
                     text = "attenote",
