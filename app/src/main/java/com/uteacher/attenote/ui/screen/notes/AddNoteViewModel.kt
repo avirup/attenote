@@ -234,6 +234,151 @@ class AddNoteViewModel(
         _uiState.update { it.copy(showDatePicker = false) }
     }
 
+    fun onDeleteNoteRequested() {
+        if (noteId <= 0L || _uiState.value.isDeletingNote) return
+        _uiState.update {
+            it.copy(
+                showDeleteNoteConfirmation = true,
+                error = null
+            )
+        }
+    }
+
+    fun onDeleteNoteDismissed() {
+        _uiState.update { it.copy(showDeleteNoteConfirmation = false) }
+    }
+
+    fun onDeleteNoteConfirmed() {
+        if (noteId <= 0L) return
+        val currentState = _uiState.value
+        if (currentState.isDeletingNote) return
+
+        _uiState.update {
+            it.copy(
+                showDeleteNoteConfirmation = false,
+                isDeletingNote = true,
+                error = null
+            )
+        }
+
+        viewModelScope.launch {
+            val result = runCatching { noteRepository.deleteNotePermanently(noteId) }
+                .getOrElse { throwable ->
+                    RepositoryResult.Error(
+                        "Failed to delete note: ${throwable.message ?: "Unknown error"}"
+                    )
+                }
+
+            when (result) {
+                is RepositoryResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isDeletingNote = false,
+                            shouldNavigateBack = true,
+                            error = null
+                        )
+                    }
+                }
+
+                is RepositoryResult.Error -> {
+                    val noteStillExists = runCatching {
+                        noteRepository.getNoteById(noteId) != null
+                    }.getOrElse { true }
+                    _uiState.update {
+                        it.copy(
+                            isDeletingNote = false,
+                            shouldNavigateBack = !noteStillExists,
+                            error = if (noteStillExists) {
+                                result.message
+                            } else {
+                                "Note deleted, but some media files could not be cleaned up."
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun onDeleteSavedMediaRequested(mediaId: Long) {
+        val state = _uiState.value
+        if (state.isSaving || state.isDeletingNote || state.deletingMediaIds.contains(mediaId)) return
+        _uiState.update {
+            it.copy(
+                deleteMediaCandidateId = mediaId,
+                error = null
+            )
+        }
+    }
+
+    fun onDeleteSavedMediaDismissed() {
+        _uiState.update { it.copy(deleteMediaCandidateId = null) }
+    }
+
+    fun onDeleteSavedMediaConfirmed() {
+        val state = _uiState.value
+        val mediaId = state.deleteMediaCandidateId ?: return
+        if (state.deletingMediaIds.contains(mediaId)) return
+
+        _uiState.update {
+            it.copy(
+                deleteMediaCandidateId = null,
+                deletingMediaIds = it.deletingMediaIds + mediaId,
+                error = null
+            )
+        }
+
+        viewModelScope.launch {
+            val result = runCatching { noteRepository.deleteNoteMediaPermanently(mediaId) }
+                .getOrElse { throwable ->
+                    RepositoryResult.Error(
+                        "Failed to delete media: ${throwable.message ?: "Unknown error"}"
+                    )
+                }
+
+            when (result) {
+                is RepositoryResult.Success -> {
+                    _uiState.update { current ->
+                        current.copy(
+                            savedMedia = current.savedMedia.filterNot { it.mediaId == mediaId },
+                            deletingMediaIds = current.deletingMediaIds - mediaId,
+                            error = null
+                        )
+                    }
+                }
+
+                is RepositoryResult.Error -> {
+                    val mediaStillExists = runCatching {
+                        if (noteId <= 0L) {
+                            false
+                        } else {
+                            noteRepository
+                                .getNoteWithMedia(noteId)
+                                ?.second
+                                ?.any { it.mediaId == mediaId } == true
+                        }
+                    }.getOrElse { true }
+
+                    _uiState.update { current ->
+                        current.copy(
+                            savedMedia = if (mediaStillExists) {
+                                current.savedMedia
+                            } else {
+                                current.savedMedia.filterNot { it.mediaId == mediaId }
+                            },
+                            deletingMediaIds = current.deletingMediaIds - mediaId,
+                            error = if (mediaStillExists) {
+                                result.message
+                            } else {
+                                "Attachment removed, but the local file cleanup failed."
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     fun onAddMedia(uri: Uri, context: Context) {
         viewModelScope.launch {
             try {
@@ -296,7 +441,7 @@ class AddNoteViewModel(
 
     fun onAutoSave() {
         val state = _uiState.value
-        if (state.isSaving) return
+        if (state.isSaving || state.isDeletingNote) return
         if (!state.hasUnsavedChanges) return
 
         val html = state.richTextState.toHtml()
@@ -314,7 +459,7 @@ class AddNoteViewModel(
 
     private fun saveNote(navigateAfterSave: Boolean) {
         val state = _uiState.value
-        if (state.isSaving) return
+        if (state.isSaving || state.isDeletingNote) return
 
         val html = state.richTextState.toHtml()
         _uiState.update { it.copy(isSaving = true, error = null) }

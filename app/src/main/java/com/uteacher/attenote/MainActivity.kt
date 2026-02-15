@@ -163,6 +163,10 @@ class MainActivity : FragmentActivity() {
             actionBarPrimaryAction?.onClick?.invoke()
             return true
         }
+        if (item.itemId == MENU_ITEM_SECONDARY_ACTION) {
+            actionBarPrimaryAction?.secondaryAction?.onClick?.invoke()
+            return true
+        }
         return super.onOptionsItemSelected(item)
     }
 
@@ -174,37 +178,29 @@ class MainActivity : FragmentActivity() {
         menu.clear()
         val action = actionBarPrimaryAction
         if (action != null) {
-            val item = menu.add(Menu.NONE, MENU_ITEM_PRIMARY_ACTION, Menu.NONE, action.title)
-            item.contentDescription = action.contentDescription
-            item.tooltipText = action.contentDescription
-            item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-            item.isEnabled = action.enabled
-
-            val iconSizePx = dpToPx(action.iconSizeDp ?: 16f)
-            val actionEndPaddingPx = dpToPx(action.endPaddingDp)
-            action.iconResId?.let { iconResId ->
-                val actionIcon = AppCompatResources.getDrawable(this, iconResId)?.mutate()?.apply {
-                    setBounds(0, 0, iconSizePx, iconSizePx)
-                }
-                val iconView = ImageView(this).apply {
-                    setImageDrawable(actionIcon)
-                    contentDescription = action.contentDescription
-                    isEnabled = action.enabled
-                    alpha = if (action.enabled) 1f else 0.45f
-                    setPadding(0, 0, actionEndPaddingPx, 0)
-                    minimumWidth = 0
-                    minimumHeight = 0
-                    layoutParams = ViewGroup.LayoutParams(
-                        dpToPx(20f) + actionEndPaddingPx,
-                        dpToPx(20f)
-                    )
-                    setOnClickListener {
-                        if (action.enabled) {
-                            action.onClick.invoke()
-                        }
-                    }
-                }
-                item.actionView = iconView
+            configureActionMenuItem(
+                menu = menu,
+                itemId = MENU_ITEM_PRIMARY_ACTION,
+                title = action.title,
+                contentDescription = action.contentDescription,
+                enabled = action.enabled,
+                iconResId = action.iconResId,
+                iconSizeDp = action.iconSizeDp,
+                endPaddingDp = action.endPaddingDp,
+                onClick = action.onClick
+            )
+            action.secondaryAction?.let { secondary ->
+                configureActionMenuItem(
+                    menu = menu,
+                    itemId = MENU_ITEM_SECONDARY_ACTION,
+                    title = secondary.title,
+                    contentDescription = secondary.contentDescription,
+                    enabled = secondary.enabled,
+                    iconResId = secondary.iconResId,
+                    iconSizeDp = secondary.iconSizeDp,
+                    endPaddingDp = secondary.endPaddingDp,
+                    onClick = secondary.onClick
+                )
             }
         }
         return super.onPrepareOptionsMenu(menu)
@@ -363,6 +359,8 @@ class MainActivity : FragmentActivity() {
 
     private fun applyActionBarPrimaryAction(action: ActionBarPrimaryAction?) {
         val previous = actionBarPrimaryAction
+        val previousSecondary = previous?.secondaryAction
+        val nextSecondary = action?.secondaryAction
         if (
             previous?.title == action?.title &&
             previous?.iconResId == action?.iconResId &&
@@ -370,7 +368,14 @@ class MainActivity : FragmentActivity() {
             previous?.iconSizeDp == action?.iconSizeDp &&
             previous?.endPaddingDp == action?.endPaddingDp &&
             previous?.enabled == action?.enabled &&
-            previous?.onClick === action?.onClick
+            previous?.onClick === action?.onClick &&
+            previousSecondary?.title == nextSecondary?.title &&
+            previousSecondary?.iconResId == nextSecondary?.iconResId &&
+            previousSecondary?.contentDescription == nextSecondary?.contentDescription &&
+            previousSecondary?.iconSizeDp == nextSecondary?.iconSizeDp &&
+            previousSecondary?.endPaddingDp == nextSecondary?.endPaddingDp &&
+            previousSecondary?.enabled == nextSecondary?.enabled &&
+            previousSecondary?.onClick === nextSecondary?.onClick
         ) {
             return
         }
@@ -378,9 +383,54 @@ class MainActivity : FragmentActivity() {
         invalidateOptionsMenu()
     }
 
+    private fun configureActionMenuItem(
+        menu: Menu,
+        itemId: Int,
+        title: String,
+        contentDescription: String,
+        enabled: Boolean,
+        iconResId: Int?,
+        iconSizeDp: Float?,
+        endPaddingDp: Float,
+        onClick: () -> Unit
+    ) {
+        val item = menu.add(Menu.NONE, itemId, Menu.NONE, title)
+        item.contentDescription = contentDescription
+        item.tooltipText = contentDescription
+        item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+        item.isEnabled = enabled
+
+        val resolvedIconRes = iconResId ?: return
+        val iconSizePx = dpToPx(iconSizeDp ?: 16f)
+        val actionEndPaddingPx = dpToPx(endPaddingDp)
+        val actionIcon = AppCompatResources.getDrawable(this, resolvedIconRes)?.mutate()?.apply {
+            setBounds(0, 0, iconSizePx, iconSizePx)
+        }
+        val iconView = ImageView(this).apply {
+            setImageDrawable(actionIcon)
+            this.contentDescription = contentDescription
+            isEnabled = enabled
+            alpha = if (enabled) 1f else 0.45f
+            setPadding(0, 0, actionEndPaddingPx, 0)
+            minimumWidth = 0
+            minimumHeight = 0
+            layoutParams = ViewGroup.LayoutParams(
+                dpToPx(20f) + actionEndPaddingPx,
+                dpToPx(20f)
+            )
+            setOnClickListener {
+                if (enabled) {
+                    onClick.invoke()
+                }
+            }
+        }
+        item.actionView = iconView
+    }
+
     private companion object {
         private const val STARTUP_TAG = "StartupGate"
         private const val MENU_ITEM_PRIMARY_ACTION = 1001
+        private const val MENU_ITEM_SECONDARY_ACTION = 1002
         private const val DASHBOARD_ACTION_BAR_TITLE = "Dashboard"
         private const val SPLASH_ACTION_BAR_TITLE = "Splash"
         private const val BRAND_PRIMARY_COLOR_INT = -10793744 // #5B4CF0

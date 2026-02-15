@@ -166,7 +166,15 @@ class NoteRepositoryImpl(
                 subject = "noteId=$noteId",
                 statuses = deleteResult.mediaCleanupResults
             )
-            RepositoryResult.Success(Unit)
+            val cleanupError = buildCleanupWarning(
+                statuses = deleteResult.mediaCleanupResults,
+                successSubject = "Note"
+            )
+            if (cleanupError != null) {
+                RepositoryResult.Error(cleanupError)
+            } else {
+                RepositoryResult.Success(Unit)
+            }
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to delete note: ${e.message}")
         }
@@ -201,7 +209,15 @@ class NoteRepositoryImpl(
                 subject = "mediaId=$mediaId",
                 statuses = deleteResult.mediaCleanupResults
             )
-            RepositoryResult.Success(Unit)
+            val cleanupError = buildCleanupWarning(
+                statuses = deleteResult.mediaCleanupResults,
+                successSubject = "Attachment"
+            )
+            if (cleanupError != null) {
+                RepositoryResult.Error(cleanupError)
+            } else {
+                RepositoryResult.Success(Unit)
+            }
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to delete media: ${e.message}")
         }
@@ -255,6 +271,21 @@ class NoteRepositoryImpl(
                     "Media cleanup warning during $operation ($subject, path=${failure.filePath}): ${failure.errorMessage}"
                 )
             }
+    }
+
+    private fun buildCleanupWarning(
+        statuses: List<MediaCleanupResult>,
+        successSubject: String
+    ): String? {
+        val failedCount = statuses.count { it.status == MediaCleanupStatus.FAILED }
+        if (failedCount == 0) {
+            return null
+        }
+        return if (failedCount == 1) {
+            "$successSubject deleted, but one local media file could not be cleaned up."
+        } else {
+            "$successSubject deleted, but $failedCount local media files could not be cleaned up."
+        }
     }
 
     private companion object {

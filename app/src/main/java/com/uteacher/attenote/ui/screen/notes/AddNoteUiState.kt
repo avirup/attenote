@@ -15,8 +15,12 @@ data class AddNoteUiState(
     val pendingMedia: List<PendingMedia> = emptyList(),
     val savedMedia: List<NoteMedia> = emptyList(),
     val showDatePicker: Boolean = false,
+    val showDeleteNoteConfirmation: Boolean = false,
+    val deleteMediaCandidateId: Long? = null,
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
+    val isDeletingNote: Boolean = false,
+    val deletingMediaIds: Set<Long> = emptySet(),
     val saveSuccess: Boolean = false,
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
@@ -29,7 +33,10 @@ private fun createRichTextState(): RichTextState {
     return RichTextState().apply {
         config.orderedListStyleType = OrderedListStyleType.Decimal
         config.unorderedListStyleType = UnorderedListStyleType.Companion.from("•")
+        config.listIndent = LIST_INDENT
         config.preserveStyleOnEmptyLine = true
-        config.exitListOnEmptyItem = false
+        config.exitListOnEmptyItem = true
     }
 }
+
+private const val LIST_INDENT = 22

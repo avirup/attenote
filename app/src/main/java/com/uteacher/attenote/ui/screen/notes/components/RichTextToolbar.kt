@@ -186,26 +186,14 @@ private fun ParagraphToolbar(
             contentDescription = "Bullet list",
             enabled = enabled,
             selected = state.isUnorderedList,
-            onClick = {
-                if (state.isUnorderedList) {
-                    state.removeUnorderedList()
-                } else {
-                    state.addUnorderedList()
-                }
-            }
+            onClick = state::toggleUnorderedList
         )
         ToolbarIconButton(
             icon = Icons.Default.FormatListNumbered,
             contentDescription = "Numbered list",
             enabled = enabled,
             selected = state.isOrderedList,
-            onClick = {
-                if (state.isOrderedList) {
-                    state.removeOrderedList()
-                } else {
-                    state.addOrderedList()
-                }
-            }
+            onClick = state::toggleOrderedList
         )
         ToolbarIconButton(
             icon = Icons.AutoMirrored.Filled.FormatAlignLeft,
@@ -252,20 +240,32 @@ private fun StyleToolbar(
                 icon = Icons.Default.LooksOne,
                 contentDescription = "Heading 1",
                 enabled = enabled,
-                selected = state.currentSpanStyle.fontSize == 28.sp &&
-                    state.currentSpanStyle.fontWeight == FontWeight.Bold,
+                selected = isHeadingSelected(
+                    currentStyle = state.currentSpanStyle,
+                    headingStyle = HEADING_1_STYLE
+                ),
                 onClick = {
-                    state.addSpanStyle(SpanStyle(fontSize = 28.sp, fontWeight = FontWeight.Bold))
+                    toggleHeading(
+                        state = state,
+                        headingStyle = HEADING_1_STYLE,
+                        otherHeadingStyle = HEADING_2_STYLE
+                    )
                 }
             )
             ToolbarIconButton(
                 icon = Icons.Default.LooksTwo,
                 contentDescription = "Heading 2",
                 enabled = enabled,
-                selected = state.currentSpanStyle.fontSize == 22.sp &&
-                    state.currentSpanStyle.fontWeight == FontWeight.SemiBold,
+                selected = isHeadingSelected(
+                    currentStyle = state.currentSpanStyle,
+                    headingStyle = HEADING_2_STYLE
+                ),
                 onClick = {
-                    state.addSpanStyle(SpanStyle(fontSize = 22.sp, fontWeight = FontWeight.SemiBold))
+                    toggleHeading(
+                        state = state,
+                        headingStyle = HEADING_2_STYLE,
+                        otherHeadingStyle = HEADING_1_STYLE
+                    )
                 }
             )
             ToolbarIconButton(
@@ -443,6 +443,30 @@ private fun applyFontSizeDelta(
     state.addSpanStyle(SpanStyle(fontSize = nextValue.sp))
 }
 
+private fun toggleHeading(
+    state: RichTextState,
+    headingStyle: SpanStyle,
+    otherHeadingStyle: SpanStyle
+) {
+    if (isHeadingSelected(state.currentSpanStyle, headingStyle)) {
+        state.removeSpanStyle(headingStyle)
+        return
+    }
+
+    if (isHeadingSelected(state.currentSpanStyle, otherHeadingStyle)) {
+        state.removeSpanStyle(otherHeadingStyle)
+    }
+    state.addSpanStyle(headingStyle)
+}
+
+private fun isHeadingSelected(
+    currentStyle: SpanStyle,
+    headingStyle: SpanStyle
+): Boolean {
+    return currentStyle.fontSize == headingStyle.fontSize &&
+        currentStyle.fontWeight == headingStyle.fontWeight
+}
+
 private data class TextColorOption(
     val description: String,
     val color: Color
@@ -461,3 +485,5 @@ private const val FONT_SIZE_STEP_SP = 2f
 private const val DEFAULT_FONT_SIZE_SP = 16f
 private const val MIN_FONT_SIZE_SP = 12f
 private const val MAX_FONT_SIZE_SP = 48f
+private val HEADING_1_STYLE = SpanStyle(fontSize = 28.sp, fontWeight = FontWeight.Bold)
+private val HEADING_2_STYLE = SpanStyle(fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
