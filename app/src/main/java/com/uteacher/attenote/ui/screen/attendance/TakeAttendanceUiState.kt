@@ -16,6 +16,8 @@ data class TakeAttendanceUiState(
     val lessonNotes: String = "",
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
+    val isAutoSaving: Boolean = false,
+    val hasPendingChanges: Boolean = false,
     val saveSuccess: Boolean = false,
     val error: String? = null,
     val shouldNavigateBack: Boolean = false

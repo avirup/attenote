@@ -9,6 +9,8 @@ import com.uteacher.attenote.data.repository.StudentRepository
 import com.uteacher.attenote.data.repository.internal.RepositoryResult
 import com.uteacher.attenote.domain.model.AttendanceStatus
 import java.time.LocalDate
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +34,8 @@ class TakeAttendanceViewModel(
         )
     )
     val uiState: StateFlow<TakeAttendanceUiState> = _uiState.asStateFlow()
+    private var persistedSnapshot: AttendanceDraftSnapshot? = null
+    private var lessonNoteAutoSaveJob: Job? = null
 
     init {
         loadAttendanceContext()
@@ -161,19 +165,22 @@ class TakeAttendanceViewModel(
                     }
                     .sortedBy { it.student.name.lowercase() }
 
-                _uiState.update {
-                    it.copy(
-                        date = parsedDate,
-                        classItem = classItem,
-                        schedule = schedule,
-                        isClassTaken = isClassTaken,
-                        attendanceRecords = attendanceRecords,
-                        lessonNotes = existingSession?.lessonNotes.orEmpty(),
-                        isLoading = false,
-                        error = null,
-                        shouldNavigateBack = false
-                    )
-                }
+                val loadedState = _uiState.value.copy(
+                    date = parsedDate,
+                    classItem = classItem,
+                    schedule = schedule,
+                    isClassTaken = isClassTaken,
+                    attendanceRecords = attendanceRecords,
+                    lessonNotes = existingSession?.lessonNotes.orEmpty(),
+                    isLoading = false,
+                    isSaving = false,
+                    isAutoSaving = false,
+                    hasPendingChanges = false,
+                    error = null,
+                    shouldNavigateBack = false
+                )
+                persistedSnapshot = createSnapshot(loadedState)
+                _uiState.value = loadedState
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -191,7 +198,7 @@ class TakeAttendanceViewModel(
 
     fun onClassTakenChanged(isTaken: Boolean) {
         _uiState.update { state ->
-            if (state.isSaving || state.isClassTaken == isTaken) {
+            if (state.isSaving || state.isAutoSaving || state.isClassTaken == isTaken) {
                 state
             } else {
                 val normalizedStatus = if (isTaken) {
@@ -199,9 +206,13 @@ class TakeAttendanceViewModel(
                 } else {
                     AttendanceStatus.SKIPPED
                 }
-                state.copy(
-                    isClassTaken = isTaken,
-                    attendanceRecords = state.attendanceRecords.map { it.copy(status = normalizedStatus) }
+                withPendingChanges(
+                    state.copy(
+                        isClassTaken = isTaken,
+                        attendanceRecords = state.attendanceRecords.map {
+                            it.copy(status = normalizedStatus)
+                        }
+                    )
                 )
             }
         }
@@ -209,45 +220,76 @@ class TakeAttendanceViewModel(
 
     fun onToggleStudentPresent(studentId: Long, isPresent: Boolean) {
         _uiState.update { state ->
-            if (!state.isClassTaken || state.isSaving) {
+            if (!state.isClassTaken || state.isSaving || state.isAutoSaving) {
                 state
             } else {
-                state.copy(
-                    attendanceRecords = state.attendanceRecords.map { record ->
-                        if (record.student.studentId == studentId) {
-                            record.copy(
-                                status = if (isPresent) {
-                                    AttendanceStatus.PRESENT
-                                } else {
-                                    AttendanceStatus.ABSENT
-                                }
-                            )
-                        } else {
-                            record
+                withPendingChanges(
+                    state.copy(
+                        attendanceRecords = state.attendanceRecords.map { record ->
+                            if (record.student.studentId == studentId) {
+                                record.copy(
+                                    status = if (isPresent) {
+                                        AttendanceStatus.PRESENT
+                                    } else {
+                                        AttendanceStatus.ABSENT
+                                    }
+                                )
+                            } else {
+                                record
+                            }
                         }
-                    }
+                    )
                 )
             }
         }
     }
 
     fun onLessonNotesChanged(notes: String) {
-        _uiState.update { it.copy(lessonNotes = notes) }
+        _uiState.update { state ->
+            withPendingChanges(state.copy(lessonNotes = notes))
+        }
+        if (_uiState.value.hasPendingChanges) {
+            scheduleLessonNoteAutoSave()
+        }
     }
 
     fun onSaveClicked() {
+        lessonNoteAutoSaveJob?.cancel()
         saveAttendance(markSuccess = true)
     }
 
-    fun onAutoSaveExit() {
+    fun onAutoSaveBackground() {
+        lessonNoteAutoSaveJob?.cancel()
         saveAttendance(markSuccess = false)
+    }
+
+    fun onAutoSaveExit() {
+        lessonNoteAutoSaveJob?.cancel()
+        saveAttendance(markSuccess = false)
+    }
+
+    private fun scheduleLessonNoteAutoSave() {
+        lessonNoteAutoSaveJob?.cancel()
+        lessonNoteAutoSaveJob = viewModelScope.launch {
+            delay(LESSON_NOTE_AUTOSAVE_DEBOUNCE_MS)
+            saveAttendance(markSuccess = false)
+        }
     }
 
     private fun saveAttendance(markSuccess: Boolean) {
         val state = _uiState.value
         val date = state.date
 
-        if (state.isLoading || state.isSaving || state.attendanceRecords.isEmpty()) {
+        if (
+            state.isLoading ||
+            state.isSaving ||
+            state.isAutoSaving ||
+            state.attendanceRecords.isEmpty()
+        ) {
+            return
+        }
+
+        if (!markSuccess && !state.hasPendingChanges) {
             return
         }
 
@@ -258,9 +300,19 @@ class TakeAttendanceViewModel(
             return
         }
 
+        val snapshotToPersist = createSnapshot(state)
+
         _uiState.update {
-            if (markSuccess) it.copy(isSaving = true, error = null)
-            else it.copy(isSaving = true)
+            if (markSuccess) {
+                it.copy(
+                    isSaving = true,
+                    isAutoSaving = false,
+                    saveSuccess = false,
+                    error = null
+                )
+            } else {
+                it.copy(isAutoSaving = true)
+            }
         }
 
         viewModelScope.launch {
@@ -283,11 +335,17 @@ class TakeAttendanceViewModel(
                     )
                 ) {
                     is RepositoryResult.Success -> {
+                        persistedSnapshot = snapshotToPersist
                         _uiState.update {
-                            it.copy(
+                            val nextState = it.copy(
                                 isSaving = false,
+                                isAutoSaving = false,
                                 saveSuccess = markSuccess
                             )
+                            withPendingChanges(nextState)
+                        }
+                        if (!markSuccess && _uiState.value.hasPendingChanges) {
+                            scheduleLessonNoteAutoSave()
                         }
                     }
 
@@ -296,10 +354,11 @@ class TakeAttendanceViewModel(
                             if (markSuccess) {
                                 current.copy(
                                     isSaving = false,
+                                    isAutoSaving = false,
                                     error = result.message
                                 )
                             } else {
-                                current.copy(isSaving = false)
+                                current.copy(isAutoSaving = false)
                             }
                         }
                     }
@@ -309,13 +368,47 @@ class TakeAttendanceViewModel(
                     if (markSuccess) {
                         current.copy(
                             isSaving = false,
+                            isAutoSaving = false,
                             error = "Failed to save attendance: ${e.message ?: "Unknown error"}"
                         )
                     } else {
-                        current.copy(isSaving = false)
+                        current.copy(isAutoSaving = false)
                     }
                 }
             }
         }
+    }
+
+    private fun withPendingChanges(state: TakeAttendanceUiState): TakeAttendanceUiState {
+        val baseline = persistedSnapshot
+        val hasPendingChanges = baseline != null && createSnapshot(state) != baseline
+        return state.copy(hasPendingChanges = hasPendingChanges)
+    }
+
+    private fun createSnapshot(state: TakeAttendanceUiState): AttendanceDraftSnapshot {
+        val normalizedRecords = state.attendanceRecords
+            .map { record ->
+                record.student.studentId to if (state.isClassTaken) {
+                    record.status
+                } else {
+                    AttendanceStatus.SKIPPED
+                }
+            }
+            .sortedBy { it.first }
+        return AttendanceDraftSnapshot(
+            isClassTaken = state.isClassTaken,
+            lessonNotes = state.lessonNotes.trimEnd(),
+            normalizedRecords = normalizedRecords
+        )
+    }
+
+    private data class AttendanceDraftSnapshot(
+        val isClassTaken: Boolean,
+        val lessonNotes: String,
+        val normalizedRecords: List<Pair<Long, AttendanceStatus>>
+    )
+
+    private companion object {
+        const val LESSON_NOTE_AUTOSAVE_DEBOUNCE_MS = 700L
     }
 }
