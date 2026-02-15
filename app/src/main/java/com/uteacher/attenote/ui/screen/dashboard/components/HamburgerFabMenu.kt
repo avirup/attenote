@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 fun HamburgerFabMenu(
     expanded: Boolean,
     alignLeft: Boolean,
+    isNotesOnlyModeEnabled: Boolean,
     onToggle: () -> Unit,
     onCreateClass: () -> Unit,
     onManageClasses: () -> Unit,
@@ -32,6 +33,33 @@ fun HamburgerFabMenu(
     modifier: Modifier = Modifier
 ) {
     val columnAlignment = if (alignLeft) Alignment.Start else Alignment.End
+    val menuItems = if (isNotesOnlyModeEnabled) {
+        listOf(
+            FabMenuAction(
+                text = "Settings",
+                onClick = onSettings
+            )
+        )
+    } else {
+        listOf(
+            FabMenuAction(
+                text = "Create Class",
+                onClick = onCreateClass
+            ),
+            FabMenuAction(
+                text = "Edit Class",
+                onClick = onManageClasses
+            ),
+            FabMenuAction(
+                text = "Manage Students",
+                onClick = onManageStudents
+            ),
+            FabMenuAction(
+                text = "Settings",
+                onClick = onSettings
+            )
+        )
+    }
     androidx.compose.foundation.layout.Column(
         modifier = modifier,
         horizontalAlignment = columnAlignment,
@@ -46,10 +74,13 @@ fun HamburgerFabMenu(
                 horizontalAlignment = columnAlignment,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FabMenuItem(text = "Create Class", onClick = onCreateClass, alignLeft = alignLeft)
-                FabMenuItem(text = "Edit Class", onClick = onManageClasses, alignLeft = alignLeft)
-                FabMenuItem(text = "Manage Students", onClick = onManageStudents, alignLeft = alignLeft)
-                FabMenuItem(text = "Settings", onClick = onSettings, alignLeft = alignLeft)
+                menuItems.forEach { action ->
+                    FabMenuItem(
+                        text = action.text,
+                        onClick = action.onClick,
+                        alignLeft = alignLeft
+                    )
+                }
             }
         }
 
@@ -64,6 +95,11 @@ fun HamburgerFabMenu(
         }
     }
 }
+
+private data class FabMenuAction(
+    val text: String,
+    val onClick: () -> Unit
+)
 
 @Composable
 private fun FabMenuItem(

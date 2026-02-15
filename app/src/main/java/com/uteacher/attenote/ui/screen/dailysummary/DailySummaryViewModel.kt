@@ -48,7 +48,7 @@ class DailySummaryViewModel(
                     attendanceRepository.observeAllSessions(),
                     classRepository.observeAllClasses(),
                     studentRepository.observeAllStudents(),
-                    settingsRepository.notesOnlyModeEnabled
+                    settingsRepository.notesOnlyMode
                 ) { notes, sessions, classes, students, isNotesOnlyModeEnabled ->
                     SummarySnapshot(
                         notes = notes,

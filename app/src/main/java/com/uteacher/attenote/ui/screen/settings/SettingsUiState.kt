@@ -15,6 +15,7 @@ data class SettingsUiState(
     val sessionPreview: String = "",
 
     val fabPosition: FabPosition = FabPosition.RIGHT,
+    val isNotesOnlyModeEnabled: Boolean = false,
 
     val isExporting: Boolean = false,
     val exportSuccess: Boolean = false,

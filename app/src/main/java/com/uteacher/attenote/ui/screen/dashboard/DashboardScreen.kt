@@ -135,30 +135,32 @@ fun DashboardScreen(
                 )
             }
 
-            item {
-                AttenoteSectionCard(title = "Scheduled Classes") {
-                    if (uiState.scheduledClasses.isEmpty()) {
-                        Text(
-                            text = "No classes scheduled for this date",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(8.dp)
-                        )
-                    } else {
-                        androidx.compose.foundation.layout.Column(
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            uiState.scheduledClasses.forEach { scheduledClass ->
-                                ScheduledClassCard(
-                                    scheduledClass = scheduledClass,
-                                    onTakeAttendance = {
-                                        onNavigateToTakeAttendance(
-                                            scheduledClass.classId,
-                                            scheduledClass.scheduleId,
-                                            uiState.selectedDate.toString()
-                                        )
-                                    }
-                                )
+            if (!uiState.isNotesOnlyModeEnabled) {
+                item {
+                    AttenoteSectionCard(title = "Scheduled Classes") {
+                        if (uiState.scheduledClasses.isEmpty()) {
+                            Text(
+                                text = "No classes scheduled for this date",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        } else {
+                            androidx.compose.foundation.layout.Column(
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                uiState.scheduledClasses.forEach { scheduledClass ->
+                                    ScheduledClassCard(
+                                        scheduledClass = scheduledClass,
+                                        onTakeAttendance = {
+                                            onNavigateToTakeAttendance(
+                                                scheduledClass.classId,
+                                                scheduledClass.scheduleId,
+                                                uiState.selectedDate.toString()
+                                            )
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -248,7 +250,11 @@ fun DashboardScreen(
                 expanded = uiState.calendarExpanded,
                 selectedDate = uiState.selectedDate,
                 currentMonth = uiState.currentMonth,
-                datesWithContent = uiState.datesWithClasses + uiState.datesWithNotes,
+                datesWithContent = if (uiState.isNotesOnlyModeEnabled) {
+                    uiState.datesWithNotes
+                } else {
+                    uiState.datesWithClasses + uiState.datesWithNotes
+                },
                 weekRange = viewModel.getWeekRange(uiState.selectedDate),
                 onDateSelected = viewModel::onDateSelected,
                 onPreviousDay = viewModel::onPreviousDayClicked,
@@ -303,6 +309,7 @@ fun DashboardScreen(
             HamburgerFabMenu(
                 expanded = uiState.fabMenuExpanded,
                 alignLeft = uiState.fabPosition == FabPosition.LEFT,
+                isNotesOnlyModeEnabled = uiState.isNotesOnlyModeEnabled,
                 onToggle = viewModel::onToggleFabMenu,
                 onCreateClass = {
                     onNavigateToCreateClass()

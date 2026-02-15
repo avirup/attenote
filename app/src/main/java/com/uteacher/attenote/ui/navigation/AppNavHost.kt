@@ -15,6 +15,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,6 +28,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.uteacher.attenote.data.repository.SettingsPreferencesRepository
 import com.uteacher.attenote.ui.screen.auth.AuthGateScreen
 import com.uteacher.attenote.ui.screen.createclass.CreateClassScreen
 import com.uteacher.attenote.ui.screen.dashboard.DashboardScreen
@@ -45,10 +49,12 @@ import com.uteacher.attenote.ui.theme.component.AttenoteSecondaryButton
 fun AppNavHost(
     navController: NavHostController,
     startDestination: AppRoute,
+    settingsRepository: SettingsPreferencesRepository,
     onActionBarChanged: (title: String, showBack: Boolean) -> Unit,
     onActionBarPrimaryActionChanged: (ActionBarPrimaryAction?) -> Unit
 ) {
     val context = LocalContext.current
+    val notesOnlyModeEnabled by settingsRepository.notesOnlyMode.collectAsState(initial = false)
     val topChromePadding = remember(context) {
         context.pxToDp(context.resolveStatusBarHeightPx() + context.resolveActionBarHeightPx())
     }
@@ -165,6 +171,9 @@ fun AppNavHost(
         }
 
         composable<AppRoute.CreateClass> {
+            if (GuardNotesOnlyClassAttendanceRoute(notesOnlyModeEnabled, navController)) {
+                return@composable
+            }
             ConfigureActionBar(
                 route = AppRoute.CreateClass,
                 onActionBarChanged = onActionBarChanged,
@@ -177,6 +186,9 @@ fun AppNavHost(
         }
 
         composable<AppRoute.ManageClassList> {
+            if (GuardNotesOnlyClassAttendanceRoute(notesOnlyModeEnabled, navController)) {
+                return@composable
+            }
             ConfigureActionBar(
                 route = AppRoute.ManageClassList,
                 onActionBarChanged = onActionBarChanged,
@@ -190,6 +202,9 @@ fun AppNavHost(
         }
 
         composable<AppRoute.EditClass> { backStackEntry ->
+            if (GuardNotesOnlyClassAttendanceRoute(notesOnlyModeEnabled, navController)) {
+                return@composable
+            }
             val route = backStackEntry.toTypedRouteOrNull<AppRoute.EditClass>()
             if (route == null) {
                 InvalidRoutePlaceholder(
@@ -211,6 +226,9 @@ fun AppNavHost(
         }
 
         composable<AppRoute.ManageStudents> {
+            if (GuardNotesOnlyClassAttendanceRoute(notesOnlyModeEnabled, navController)) {
+                return@composable
+            }
             ConfigureActionBar(
                 route = AppRoute.ManageStudents,
                 onActionBarChanged = onActionBarChanged,
@@ -220,6 +238,9 @@ fun AppNavHost(
         }
 
         composable<AppRoute.TakeAttendance> { backStackEntry ->
+            if (GuardNotesOnlyClassAttendanceRoute(notesOnlyModeEnabled, navController)) {
+                return@composable
+            }
             val route = backStackEntry.toTypedRouteOrNull<AppRoute.TakeAttendance>()
             if (route == null) {
                 InvalidRoutePlaceholder(
@@ -287,6 +308,9 @@ fun AppNavHost(
         }
 
         composable<AppRoute.ViewAttendanceStats> { backStackEntry ->
+            if (GuardNotesOnlyClassAttendanceRoute(notesOnlyModeEnabled, navController)) {
+                return@composable
+            }
             val route = backStackEntry.toTypedRouteOrNull<AppRoute.ViewAttendanceStats>()
             if (route == null) {
                 InvalidRoutePlaceholder(
@@ -319,6 +343,29 @@ fun AppNavHost(
             )
         }
     }
+}
+
+@Composable
+private fun GuardNotesOnlyClassAttendanceRoute(
+    notesOnlyModeEnabled: Boolean,
+    navController: NavHostController
+): Boolean {
+    if (!notesOnlyModeEnabled) {
+        return false
+    }
+
+    val guardedDestinationId = navController.currentBackStackEntry?.destination?.id
+    LaunchedEffect(guardedDestinationId) {
+        navController.navigate(AppRoute.Dashboard) {
+            launchSingleTop = true
+            guardedDestinationId?.let { destinationId ->
+                popUpTo(destinationId) {
+                    inclusive = true
+                }
+            }
+        }
+    }
+    return true
 }
 
 private fun Context.resolveStatusBarHeightPx(): Int {

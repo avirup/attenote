@@ -57,8 +57,9 @@ class SettingsViewModel(
                         sessionFormat = sessionFormat
                     )
                 },
-                settingsRepository.fabPosition
-            ) { core, fabPosition ->
+                settingsRepository.fabPosition,
+                settingsRepository.notesOnlyMode
+            ) { core, fabPosition, notesOnlyMode ->
                 val isDeviceSecure = biometricHelper.isDeviceSecure()
                 SettingsUiState(
                     userName = core.name,
@@ -69,6 +70,7 @@ class SettingsViewModel(
                     sessionFormat = core.sessionFormat,
                     sessionPreview = computeSessionPreview(core.sessionFormat),
                     fabPosition = fabPosition,
+                    isNotesOnlyModeEnabled = notesOnlyMode,
                     showBiometricDisabledWarningDialog = core.biometric && !isDeviceSecure,
                     isLoading = false,
                     exportSuccess = _uiState.value.exportSuccess,
@@ -360,6 +362,13 @@ class SettingsViewModel(
         viewModelScope.launch {
             settingsRepository.setFabPosition(position)
             _uiState.update { it.copy(fabPosition = position) }
+        }
+    }
+
+    fun onNotesOnlyModeToggled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setNotesOnlyMode(enabled)
+            _uiState.update { it.copy(isNotesOnlyModeEnabled = enabled) }
         }
     }
 

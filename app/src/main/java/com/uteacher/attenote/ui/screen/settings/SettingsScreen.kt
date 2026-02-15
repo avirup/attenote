@@ -262,6 +262,36 @@ fun SettingsScreen(
             }
         }
 
+        AttenoteSectionCard(title = "App Mode") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Notes Only Mode",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = "Hide class, student, and attendance features. The app will function as a notes-only tool.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = uiState.isNotesOnlyModeEnabled,
+                    onCheckedChange = viewModel::onNotesOnlyModeToggled,
+                    enabled = !uiState.isLoading
+                )
+            }
+        }
+
         AttenoteSectionCard(title = "Default Session Format") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(

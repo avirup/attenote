@@ -17,5 +17,6 @@ data class DashboardUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
     val fabMenuExpanded: Boolean = false,
-    val fabPosition: FabPosition = FabPosition.RIGHT
+    val fabPosition: FabPosition = FabPosition.RIGHT,
+    val isNotesOnlyModeEnabled: Boolean = false
 )

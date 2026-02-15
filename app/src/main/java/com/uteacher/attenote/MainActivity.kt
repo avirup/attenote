@@ -134,6 +134,7 @@ class MainActivity : FragmentActivity() {
                         AppNavHost(
                             navController = navController,
                             startDestination = startDestination!!,
+                            settingsRepository = settingsRepo,
                             onActionBarChanged = { title, showBack ->
                                 applyActionBarState(title = title, showBack = showBack)
                             },

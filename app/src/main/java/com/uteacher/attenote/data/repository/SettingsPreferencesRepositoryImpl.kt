@@ -63,7 +63,7 @@ class SettingsPreferencesRepositoryImpl(
             (preferences[PreferenceKeys.FabPosition] ?: FabPosition.RIGHT.name).toFabPosition()
         }
 
-    override val notesOnlyModeEnabled: Flow<Boolean> =
+    override val notesOnlyMode: Flow<Boolean> =
         safeData.map { preferences ->
             preferences[PreferenceKeys.NotesOnlyModeEnabled] ?: false
         }
@@ -103,7 +103,7 @@ class SettingsPreferencesRepositoryImpl(
         dataStore.edit { it[PreferenceKeys.FabPosition] = position.name }
     }
 
-    override suspend fun setNotesOnlyModeEnabled(enabled: Boolean) {
+    override suspend fun setNotesOnlyMode(enabled: Boolean) {
         dataStore.edit { it[PreferenceKeys.NotesOnlyModeEnabled] = enabled }
     }
 

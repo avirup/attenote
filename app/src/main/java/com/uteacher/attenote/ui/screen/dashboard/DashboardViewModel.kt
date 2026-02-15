@@ -33,6 +33,7 @@ class DashboardViewModel(
     init {
         loadDashboardData()
         loadFabPosition()
+        loadNotesOnlyMode()
     }
 
     private fun loadDashboardData() {
@@ -67,6 +68,14 @@ class DashboardViewModel(
         viewModelScope.launch {
             settingsRepo.fabPosition.collect { position ->
                 _uiState.update { it.copy(fabPosition = position) }
+            }
+        }
+    }
+
+    private fun loadNotesOnlyMode() {
+        viewModelScope.launch {
+            settingsRepo.notesOnlyMode.collect { enabled ->
+                _uiState.update { it.copy(isNotesOnlyModeEnabled = enabled) }
             }
         }
     }
