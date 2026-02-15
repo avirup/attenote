@@ -22,6 +22,12 @@
 3. Prepend the Global Prefix to every prompt.
 4. Do not skip steps.
 
+### V2 Sequential Execution
+1. For `CODEX_REBUILD_PROMPTS_V2.md`, run prompts in strict order: `01 -> 02 -> ... -> 11`.
+2. Use one prompt per AI conversation turn (copy full prompt block).
+3. Prepend the Global Prefix to every prompt.
+4. Do not skip steps.
+
 ### Device Gate Requirement
 After every prompt:
 1. Run the Standard Device Gate commands.
@@ -42,7 +48,7 @@ After every prompt:
 
 ## Alignment Rules
 - Conflict precedence:
-  `BUSINESS_REQUIREMENTS.md` > `TECHNICAL_REQUIREMENTS.md` > `CODEX_REBUILD_PROMPTS.md` > `ImplementaionPlan.md`.
+  `BUSINESS_REQUIREMENTS.md` > `TECHNICAL_REQUIREMENTS.md` > `CODEX_REBUILD_PROMPTS.md` > `CODEX_REBUILD_PROMPTS_V2.md` > `ImplementaionPlan.md`.
 - System UI policy:
   keep Android navigation buttons visible, never hide navigation bars, keep status bar visible, and use `WindowCompat.setDecorFitsSystemWindows(window, true)`.
 - Top ActionBar policy:
@@ -51,6 +57,40 @@ After every prompt:
   use typed route objects (`AppRoute`) end-to-end; do not use raw route strings.
 - Biometric host policy:
   when using `BiometricPrompt` with an activity host, use `FragmentActivity`.
+
+## V2 Addendum (Pre-Prompt Requirements)
+- V2 prompt characteristics:
+  self-contained, device-gated, incremental, and traceable with explicit done criteria + commit message.
+- V2 scope requirements include:
+  - class duration persisted and shown in compact format on Create Class slot list, Dashboard present-date class cards, and Take Attendance class info.
+  - Take Attendance `Taken/Not Taken` behavior with `SKIPPED` normalization and reset to `PRESENT` when toggled back to `Taken`.
+  - inactive students excluded from attendance marking.
+  - lesson note in Take Attendance stays bottom-visible and autosaves draft.
+  - student model supports optional `department` (stored as empty string when omitted).
+  - Edit Student supports `registrationNumber` updates with confirm-and-merge conflict flow.
+  - Manage Students keeps active above inactive and supports department + status filters; empty-department students are not shown.
+  - CSV import supports header synonym matching for all supported fields with order-independent columns.
+  - CSV import requires name + registration, deduplicates duplicate rows before preview, and indicates inactive linked students visibly.
+  - CSV existing-student matching uses `registrationNumber + name`; inactive status is preserved when linked.
+  - class/student delete are cascade hard deletes; note/media delete are permanent delete.
+  - Dashboard notes cards hide `Created on`; notes viewer cards show only `Updated on`.
+  - Daily Summary grouped by day plus read-only notes/media and attendance stats screens.
+  - Notes Only Mode hides class/attendance surfaces and uses route guards for class/attendance routes.
+- V2 route guard policy:
+  keep class/attendance route guards in `AppNavHost` for Notes Only Mode; do not remove route registrations.
+- V2 delete policy:
+  class and student delete are irreversible cascade deletes after confirmation; class inactive toggle remains separate.
+- V2 student edit/import policy:
+  remove active toggle from Edit Student dialog, keep active/inactive action in Manage Students, and relink all `studentId` references during merge.
+- V2 attendance visibility policy:
+  Take Attendance shows only active students.
+
+## V2 Database and Migration Policy
+- No incremental migrations required during active development.
+- Use `fallbackToDestructiveMigration()` on the Room database builder.
+- When schema changes, use fresh install/cleared app data.
+- Do not add migration objects or backfill logic in V2 prompts.
+- Bump database version when schema columns change.
 
 ## Dependency Addendum
 - Prompt 01 baseline:
