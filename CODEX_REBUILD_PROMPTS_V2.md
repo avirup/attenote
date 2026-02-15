@@ -25,7 +25,8 @@ Required V2 capabilities covered by this document:
 - Search within Take Attendance student list
 - Create Class layout update: semester dropdown + section field in same row
 - Delete support for notes, classes, and students
-- Soft delete for classes and students
+- Cascade hard delete for classes (removes all schedules, attendance sessions/records, and associated notes)
+- Cascade hard delete for students (removes all attendance records for that student)
 - Permanent delete for notes and associated media
 - Deletable saved media in note editor
 - Daily Summary improved grouping by day
@@ -45,13 +46,13 @@ Required V2 capabilities covered by this document:
 ## Rebuild Phases
 
 **Phase 1: Data and Contract Foundation (Prompts 01-03)**
-- Schema updates, migration, repository contracts, deletion semantics
+- Schema updates (destructive recreate), repository contracts, cascade deletion semantics
 
 **Phase 2: Attendance and Class UX (Prompts 04-06)**
 - Create Class layout/duration presentation, Take Attendance V2 behavior, sticky note footer
 
 **Phase 3: Deletion + Summaries + Stats Views (Prompts 07-09)**
-- Note/media hard delete UX, class/student soft delete UX, grouped daily summary and stats viewer
+- Note/media permanent delete UX, class/student cascade hard delete UX, grouped daily summary and stats viewer
 
 **Phase 4: Notes Only Mode (Prompt 10)**
 - Settings toggle, Dashboard/FAB/DailySummary/navigation gating for notes-only experience
@@ -95,13 +96,14 @@ After every prompt:
 - Navigation policy:
   use typed route objects (`AppRoute`) end-to-end; do not use raw route strings.
 - Delete policy (V2):
-  class delete and student delete are soft delete; note delete and note media delete are permanent delete.
+  class delete and student delete are cascade hard delete (permanent, removes all associated data after user confirmation); note delete and note media delete are permanent delete. The existing "mark as inactive" feature for classes remains separate from delete.
 
 ### Database and Migration Policy (V2)
-- Treat schema migration as mandatory, not optional.
-- Backfill existing rows for new non-null columns.
-- Default read queries must exclude soft-deleted rows unless explicitly requesting archived data.
-- Preserve historical attendance/note integrity when classes/students are soft deleted.
+- No incremental migrations required during active development.
+- Use `fallbackToDestructiveMigration()` on the Room database builder.
+- When schema changes, the user will uninstall the app / clear data and do a fresh install.
+- Do not write migration objects or backfill logic; define the schema as-is for the target version.
+- Bump the database version number when schema columns change.
 
 ### Step Handoff Requirements
 At the end of each prompt output, include:
@@ -122,20 +124,19 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell monkey -p com.uteacher.attendancetracker -c android.intent.category.LAUNCHER 1
 ```
 
-## Prompt 01 - V2 Data Model and Migration Foundation
+## Prompt 01 - V2 Data Model Foundation (Destructive Recreate)
 ```text
-Implement V2 schema and model foundations for duration, attendance status, and soft delete support.
+Implement V2 schema and model foundations for duration and attendance status. No migrations — use destructive recreate.
 
 Implement:
 1. Schema/version prep
 - Bump Room database version.
-- Add/adjust migration object(s) from current schema version (current repo baseline: v1 schema files).
-- Keep migration deterministic and idempotent.
+- Use `fallbackToDestructiveMigration()` on the Room database builder.
+- Do NOT write migration objects or backfill logic; the user will uninstall/clear data for a fresh install.
 
 2. Schedule duration support
 - Add persisted column on schedules table:
   - `durationMinutes INTEGER NOT NULL DEFAULT 0`
-- Backfill duration from `startTime` and `endTime` for existing rows.
 - Keep validation rule that `startTime < endTime` on same day.
 
 3. Attendance status model upgrade
@@ -144,62 +145,43 @@ Implement:
 - Add record-level mark status:
   - `attendance_records.status TEXT NOT NULL DEFAULT 'PRESENT'`
   - accepted values: `PRESENT`, `ABSENT`, `SKIPPED`
-- Backfill existing records:
-  - if legacy `isPresent=1` => `PRESENT`
-  - if legacy `isPresent=0` => `ABSENT`
 
-4. Soft delete model for classes/students
-- Add to `classes`:
-  - `isDeleted INTEGER NOT NULL DEFAULT 0`
-  - `deletedAt INTEGER NULL`
-- Add to `students`:
-  - `isDeleted INTEGER NOT NULL DEFAULT 0`
-  - `deletedAt INTEGER NULL`
-- Add indices to support default filtered queries.
-
-5. Domain + mapper updates
+4. Domain + mapper updates
 - Add duration to schedule domain model.
 - Add attendance status enum in domain layer.
 - Add class taken flag in session domain model.
-- Add soft delete metadata in class/student domain models.
 
-6. Validation and invariants
+5. Validation and invariants
 - Duration must be computed from start/end and stored in minutes.
 - Never persist negative/zero duration.
 - `SKIPPED` status must be representable even if present/absent booleans exist in legacy structures.
 
 Done criteria:
 - Project compiles with upgraded schema.
-- Migration runs on existing local database without crash.
+- App launches cleanly on fresh install (after uninstall/clear data).
 - New columns visible in generated schema JSON.
-- Existing attendance rows map to `PRESENT/ABSENT` correctly.
 
 Output format:
 1. Changed files.
-2. Migration details and backfill logic summary.
+2. Schema change summary.
 3. Device gate command results.
 4. Manual checklist with pass/fail.
 5. Step handoff (completed, deferred, deps/config, assumptions).
 ```
 
 ### Git Commit Message (V2 Step 01)
-`feat(v2-step-01): add duration, attendance status, and soft-delete schema foundations with migration`
+`feat(v2-step-01): add duration and attendance status schema foundations with destructive recreate`
 
 ## Prompt 02 - DAO and Repository Contract Updates (V2 Semantics)
 ```text
 Implement DAO/repository contract changes so V2 behavior is enforceable by data layer rules.
 
 Implement:
-1. DAO query policy for soft delete
-- Default class and student list queries must filter `isDeleted = 0`.
-- Add archived/withDeleted query variants where needed for management/restore flows.
-- Ensure joins used by dashboard, attendance, and class roster ignore soft-deleted entities by default.
-
-2. Duration handling in repositories
+1. Duration handling in repositories
 - Compute `durationMinutes` from start/end for all create/update schedule writes.
 - Reject invalid duration at repository boundary.
 
-3. Attendance save contract v2
+2. Attendance save contract v2
 - Update attendance save API to accept:
   - class/session taken flag (`isClassTaken`)
   - per-student status list (`PRESENT/ABSENT/SKIPPED`)
@@ -207,19 +189,27 @@ Implement:
 - If `isClassTaken=false`, repository must normalize all records to `SKIPPED` before persistence.
 - Keep idempotent upsert behavior by class+schedule+date.
 
-4. Read models for UI
+3. Read models for UI
 - Return attendance counters supporting `present`, `absent`, `skipped`, `total`.
 - Return schedule duration for display and summary calculations.
 
-5. Soft delete methods
+4. Cascade hard delete contracts for classes
 - Class repository:
-  - `softDeleteClass(classId)`
-  - `restoreClass(classId)` (or explicit defer note if restore postponed)
-- Student repository:
-  - `softDeleteStudent(studentId)`
-  - `restoreStudent(studentId)` (or explicit defer note if restore postponed)
+  - `deleteClassPermanently(classId)` — cascading delete that removes:
+    - all schedules for the class
+    - all attendance sessions for the class
+    - all attendance records for those sessions
+    - all notes associated with the class (and their media files)
+    - the class row itself
+  - Must be transactional at DB level + best-effort file cleanup for note media.
 
-6. Hard delete methods for notes/media contracts (API only in this step)
+5. Cascade hard delete contracts for students
+- Student repository:
+  - `deleteStudentPermanently(studentId)` — cascading delete that removes:
+    - all attendance records for that student across all sessions
+    - the student row itself
+
+6. Permanent delete contracts for notes/media (API only in this step)
 - Note repository:
   - `deleteNotePermanently(noteId)`
   - `deleteNoteMediaPermanently(mediaId)`
@@ -228,7 +218,7 @@ Implement:
 Done criteria:
 - Compile passes with updated contracts.
 - Existing call sites adjusted or clearly deferred to later prompt.
-- Unit tests/verification stubs for normalization (`Not Taken => SKIPPED`) and query filtering added.
+- Unit tests/verification stubs for normalization (`Not Taken => SKIPPED`) added.
 
 Output format:
 1. Changed files.
@@ -239,22 +229,28 @@ Output format:
 ```
 
 ### Git Commit Message (V2 Step 02)
-`refactor(v2-step-02): enforce v2 attendance semantics and soft-delete aware repository contracts`
+`refactor(v2-step-02): enforce v2 attendance semantics and cascade-delete repository contracts`
 
 ## Prompt 03 - Delete Behavior and Integrity Rules
 ```text
-Implement deletion behavior end-to-end in data/domain layers according to V2 policy.
+Implement deletion behavior end-to-end in data/domain layers according to V2 policy. All deletes are permanent.
 
 Implement:
-1. Soft delete execution for classes
-- Replace hard delete operations with soft delete updates.
-- Deleting a class should hide it from normal UI queries.
-- Historical attendance and notes linked to that class remain intact in database.
+1. Cascade hard delete execution for classes
+- `deleteClassPermanently(classId)` must, in a single transaction:
+  - delete all attendance records linked to the class's attendance sessions
+  - delete all attendance sessions for the class
+  - delete all schedules for the class
+  - delete all note media rows for notes linked to the class
+  - delete all notes linked to the class
+  - delete the class row itself
+- After transaction, best-effort cleanup of physical media files for deleted notes.
+- Log/report any file cleanup failures without rolling back the DB transaction.
 
-2. Soft delete execution for students
-- Replace hard delete operations with soft delete updates.
-- Deleted students should not appear in active lists/search/attendance-taking list.
-- Existing historical attendance rows for deleted students remain intact.
+2. Cascade hard delete execution for students
+- `deleteStudentPermanently(studentId)` must, in a single transaction:
+  - delete all attendance records for that student across all sessions
+  - delete the student row itself
 
 3. Permanent note delete
 - `deleteNotePermanently(noteId)` must:
@@ -269,31 +265,34 @@ Implement:
   - delete linked file from storage
   - keep note itself intact
 
-5. Safety and recoverability
+5. Safety
 - Add confirmation-level error messages for partial file cleanup failures.
 - Ensure repeated delete calls are safe (idempotent behavior where practical).
+- The existing "mark as inactive" feature for classes is separate from delete and remains unchanged.
 
 6. Verification-oriented tests
 - Add/expand tests for:
-  - soft delete filters
+  - cascade class delete removes all associated rows
+  - cascade student delete removes all attendance records
   - permanent note delete removes db rows and files
   - single media delete removes only target media
 
 Done criteria:
-- No hard delete path remains for classes/students.
+- Class delete permanently removes class and all associated schedules, sessions, records, notes, and media.
+- Student delete permanently removes student and all associated attendance records.
 - Note and note media deletion are permanent.
 - Data integrity preserved after delete operations.
 
 Output format:
 1. Changed files.
-2. Delete behavior table (entity -> soft/hard -> rationale).
+2. Delete behavior table (entity -> cascade scope -> rationale).
 3. Device gate command results.
 4. Manual checklist with pass/fail.
 5. Step handoff.
 ```
 
 ### Git Commit Message (V2 Step 03)
-`feat(v2-step-03): implement soft-delete for classes/students and permanent delete for notes/media`
+`feat(v2-step-03): implement cascade hard delete for classes/students and permanent delete for notes/media`
 
 ## Prompt 04 - Create Class UX Update (Duration + Semester/Section Row)
 ```text
@@ -497,54 +496,60 @@ Output format:
 ### Git Commit Message (V2 Step 07)
 `feat(v2-step-07): add permanent note delete and saved-media delete controls`
 
-## Prompt 08 - Class and Student Delete UX (Soft Delete)
+## Prompt 08 - Class and Student Delete UX (Cascade Hard Delete)
 ```text
-Implement user-facing soft delete flows for classes and students.
+Implement user-facing permanent cascade delete flows for classes and students.
 
 Implement:
-1. Manage Classes delete
-- Add delete action for class items in Manage Classes/Edit Class context.
-- Confirmation dialog must clearly state soft delete behavior.
-- Soft-deleted classes disappear from default class lists/dashboard.
+1. Delete class action
+- Add delete action for class items in Manage Classes / Edit Class context.
+- Confirmation dialog must be destructive-styled and clearly warn:
+  "This will permanently delete the class and ALL associated data including schedules, attendance records, and notes. This action cannot be undone."
+- On confirm, call `deleteClassPermanently(classId)` and navigate back on success.
+- Class disappears from all lists, dashboard, and summary after deletion.
+- Note: the existing "mark as inactive" feature is separate and remains unchanged.
 
-2. Manage Students delete
+2. Delete student action
 - Add delete action for student rows in Manage Students.
-- Confirmation dialog must clearly state soft delete behavior.
-- Soft-deleted students disappear from default student lists and attendance-taking list.
+- Confirmation dialog must be destructive-styled and clearly warn:
+  "This will permanently delete the student and ALL their attendance records. This action cannot be undone."
+- On confirm, call `deleteStudentPermanently(studentId)` and navigate back on success.
+- Student disappears from all student lists and attendance screens after deletion.
 
-3. Archived visibility strategy
-- Add archived filter/toggle or archived section to verify soft deletes in-app.
-- If restore is implemented now, provide restore action; if deferred, explicitly document defer.
-
-4. Navigation/flow safety
-- If user opens stale route to soft-deleted class/student, show graceful not-found/archived message.
+3. Navigation/flow safety
+- If user opens a stale route referencing a deleted class/student (e.g., back-stack), show graceful not-found message or redirect to parent screen.
 - No crashes on deleted references.
 
-5. Summary/stat behavior
-- Historical records remain queryable for historical stats where appropriate.
-- Active operational screens should ignore soft-deleted records by default.
+4. Summary/stat behavior
+- After cascade delete, all associated records are gone from the database.
+- Daily Summary, viewer screens, and dashboard reflect the deletion immediately.
+- No orphaned attendance sessions, records, or notes should remain.
 
 Done criteria:
-- Class and student delete actions exist and perform soft delete.
-- Default lists exclude deleted entities.
-- No hard delete path used for class/student flows.
+- Class delete action exists and permanently removes class + all associated data.
+- Student delete action exists and permanently removes student + all attendance records.
+- Confirmation dialogs clearly communicate irreversible cascade behavior.
+- UI reflects deletions immediately across all screens.
 
 Manual verification checklist:
-- [ ] Delete class removes it from active class lists.
-- [ ] Delete student removes from active student lists and attendance list.
-- [ ] Historical attendance data still loads where expected.
-- [ ] Deleted entity route access is handled gracefully.
+- [ ] Delete class shows destructive confirmation with cascade warning.
+- [ ] Confirming class delete removes class, schedules, attendance, and notes from DB.
+- [ ] Delete student shows destructive confirmation with cascade warning.
+- [ ] Confirming student delete removes student and attendance records from DB.
+- [ ] Dashboard, Daily Summary, and viewer screens reflect deletions.
+- [ ] Stale route to deleted class/student is handled gracefully.
+- [ ] "Mark as inactive" for classes still works independently of delete.
 
 Output format:
 1. Changed files.
-2. Soft-delete UX behavior matrix.
+2. Cascade delete UX behavior matrix.
 3. Device gate command results.
 4. Manual checklist with pass/fail.
 5. Step handoff.
 ```
 
 ### Git Commit Message (V2 Step 08)
-`feat(v2-step-08): add soft-delete user flows for classes and students`
+`feat(v2-step-08): add cascade hard delete user flows for classes and students`
 
 ## Prompt 09 - Daily Summary Grouped by Day + Two Read-Only Viewer Screens
 ```text
@@ -708,15 +713,14 @@ Output format:
 ### Git Commit Message (V2 Step 10)
 `feat(v2-step-10): add notes-only mode toggle with UI gating across dashboard, FAB, summary, and navigation`
 
-## Prompt 11 - V2 Regression, Migration QA, and Edge-Case Hardening
+## Prompt 11 - V2 Regression QA and Edge-Case Hardening
 ```text
-Run a focused V2 quality pass across migration, deletion semantics, attendance state behavior, and Notes Only Mode.
+Run a focused V2 quality pass across deletion semantics, attendance state behavior, and Notes Only Mode.
 
 Implement:
-1. Migration verification suite
-- Validate upgrade path on a seeded pre-V2 database.
-- Verify backfilled durations and attendance statuses.
-- Verify app boot with migrated database and no destructive resets.
+1. Fresh install verification
+- Verify app boots cleanly on fresh install with V2 schema.
+- Verify `fallbackToDestructiveMigration()` works when schema version changes (uninstall + reinstall).
 
 2. Behavior regression checks
 - Ensure existing flows still work:
@@ -730,7 +734,8 @@ Implement:
 3. V2-specific edge cases
 - Toggle Taken/Not Taken repeatedly before save.
 - Search filter active while toggling attendance state.
-- Soft delete class/student with existing historical attendance.
+- Cascade delete class with existing attendance sessions, records, and notes; verify no orphans remain.
+- Cascade delete student with attendance records across multiple sessions; verify no orphans remain.
 - Delete note with multiple media attachments, including missing-file cases.
 
 4. Notes Only Mode edge cases
@@ -751,15 +756,17 @@ Implement:
 
 Done criteria:
 - No blocker regressions found.
-- Migration and V2 semantics validated on-device.
+- Fresh install and V2 semantics validated on-device.
+- Cascade deletes leave no orphaned rows.
 - Notes Only Mode gating verified across all affected screens.
 - Known residual risks explicitly documented.
 
 Manual verification checklist:
-- [ ] Migration test from pre-V2 DB passes.
+- [ ] Fresh install with V2 schema launches without crash.
 - [ ] All critical flows run without crash.
 - [ ] Not Taken -> Skipped behavior verified end-to-end.
-- [ ] Soft delete vs hard delete rules verified.
+- [ ] Cascade class delete leaves no orphaned sessions, records, notes, or media.
+- [ ] Cascade student delete leaves no orphaned attendance records.
 - [ ] Grouped summary, `ViewNotesMedia`, and `ViewAttendanceStats` are verified with realistic data.
 - [ ] Notes Only Mode on/off cycle preserves all data and UI state.
 - [ ] Notes Only Mode blocks class/attendance routes without crash.
@@ -773,7 +780,7 @@ Output format:
 ```
 
 ### Git Commit Message (V2 Step 11)
-`chore(v2-step-11): complete v2 regression pass, migration QA, notes-only-mode QA, and edge-case hardening`
+`chore(v2-step-11): complete v2 regression pass, cascade-delete QA, notes-only-mode QA, and edge-case hardening`
 
 ## Quick Tracker Template (Use After Each Step)
 ```text
