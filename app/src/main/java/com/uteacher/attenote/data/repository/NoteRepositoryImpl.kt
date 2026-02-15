@@ -1,12 +1,19 @@
 package com.uteacher.attenote.data.repository
 
-import android.content.Context
+import android.util.Log
 import androidx.room.withTransaction
 import com.uteacher.attenote.data.local.AppDatabase
 import com.uteacher.attenote.data.local.dao.NoteDao
 import com.uteacher.attenote.data.local.dao.NoteMediaDao
 import com.uteacher.attenote.data.repository.internal.InputNormalizer
+import com.uteacher.attenote.data.repository.internal.LocalMediaFileCleaner
+import com.uteacher.attenote.data.repository.internal.MediaCleanupResult
+import com.uteacher.attenote.data.repository.internal.MediaCleanupStatus
+import com.uteacher.attenote.data.repository.internal.PermanentMediaDeleteGateway
+import com.uteacher.attenote.data.repository.internal.PermanentNoteDeleteGateway
 import com.uteacher.attenote.data.repository.internal.RepositoryResult
+import com.uteacher.attenote.data.repository.internal.performPermanentMediaDelete
+import com.uteacher.attenote.data.repository.internal.performPermanentNoteDelete
 import com.uteacher.attenote.domain.mapper.toDomain
 import com.uteacher.attenote.domain.mapper.toEntity
 import com.uteacher.attenote.domain.model.Note
@@ -21,8 +28,9 @@ class NoteRepositoryImpl(
     private val noteDao: NoteDao,
     private val mediaDao: NoteMediaDao,
     private val db: AppDatabase,
-    private val context: Context
+    filesDir: File
 ) : NoteRepository {
+    private val mediaFileCleaner = LocalMediaFileCleaner(filesDir)
 
     override fun observeNotesForDate(date: LocalDate): Flow<List<Note>> =
         noteDao.observeNotesForDate(date.toString()).map { it.toDomain() }
@@ -126,18 +134,38 @@ class NoteRepositoryImpl(
     }
 
     override suspend fun deleteNotePermanently(noteId: Long): RepositoryResult<Unit> {
-        val noteWithMedia = noteDao.getNoteWithMedia(noteId)
-            ?: return RepositoryResult.Error("Note not found")
-
         return try {
-            val deletedRows = noteDao.deleteNote(noteId)
-            if (deletedRows == 0) {
-                return RepositoryResult.Error("Note not found")
-            }
+            val deleteResult = performPermanentNoteDelete(
+                noteId = noteId,
+                gateway = object : PermanentNoteDeleteGateway {
+                    override suspend fun <T> runInTransaction(block: suspend () -> T): T {
+                        return db.withTransaction { block() }
+                    }
 
-            noteWithMedia.media.forEach { media ->
-                cleanupMediaFileIfUnreferenced(media.filePath)
-            }
+                    override suspend fun getNoteMediaPaths(noteId: Long): List<String> {
+                        return noteDao.getNoteWithMedia(noteId)?.media?.map { it.filePath }.orEmpty()
+                    }
+
+                    override suspend fun countMediaReferences(filePath: String): Int {
+                        return mediaDao.countMediaReferences(filePath)
+                    }
+
+                    override suspend fun deleteAllNoteMedia(noteId: Long) {
+                        mediaDao.deleteAllMediaForNote(noteId)
+                    }
+
+                    override suspend fun deleteNote(noteId: Long): Int {
+                        return noteDao.deleteNote(noteId)
+                    }
+                },
+                cleaner = mediaFileCleaner
+            )
+
+            logCleanupWarnings(
+                operation = "note delete",
+                subject = "noteId=$noteId",
+                statuses = deleteResult.mediaCleanupResults
+            )
             RepositoryResult.Success(Unit)
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to delete note: ${e.message}")
@@ -145,46 +173,58 @@ class NoteRepositoryImpl(
     }
 
     override suspend fun deleteNoteMediaPermanently(mediaId: Long): RepositoryResult<Unit> {
-        val media = mediaDao.getMediaById(mediaId)
-            ?: return RepositoryResult.Error("Media not found")
-
         return try {
-            val deletedRows = mediaDao.deleteMedia(mediaId)
-            if (deletedRows == 0) {
-                return RepositoryResult.Error("Media not found")
-            }
-            cleanupMediaFileIfUnreferenced(media.filePath)
+            val deleteResult = performPermanentMediaDelete(
+                mediaId = mediaId,
+                gateway = object : PermanentMediaDeleteGateway {
+                    override suspend fun <T> runInTransaction(block: suspend () -> T): T {
+                        return db.withTransaction { block() }
+                    }
+
+                    override suspend fun getMediaPath(mediaId: Long): String? {
+                        return mediaDao.getMediaById(mediaId)?.filePath
+                    }
+
+                    override suspend fun countMediaReferences(filePath: String): Int {
+                        return mediaDao.countMediaReferences(filePath)
+                    }
+
+                    override suspend fun deleteMedia(mediaId: Long): Int {
+                        return mediaDao.deleteMedia(mediaId)
+                    }
+                },
+                cleaner = mediaFileCleaner
+            )
+
+            logCleanupWarnings(
+                operation = "media delete",
+                subject = "mediaId=$mediaId",
+                statuses = deleteResult.mediaCleanupResults
+            )
             RepositoryResult.Success(Unit)
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to delete media: ${e.message}")
         }
     }
 
+    @Deprecated(
+        message = "Use deleteNotePermanently for irreversible delete semantics",
+        replaceWith = ReplaceWith("deleteNotePermanently(noteId)")
+    )
     override suspend fun deleteNote(noteId: Long): RepositoryResult<Unit> {
         return deleteNotePermanently(noteId)
     }
 
+    @Deprecated(
+        message = "Use deleteNoteMediaPermanently for irreversible delete semantics",
+        replaceWith = ReplaceWith("deleteNoteMediaPermanently(mediaId)")
+    )
     override suspend fun deleteMedia(mediaId: Long): RepositoryResult<Unit> {
         return deleteNoteMediaPermanently(mediaId)
     }
 
     private fun normalizeMediaPaths(mediaPaths: List<String>): List<String> {
         return mediaPaths.mapNotNull { it.trim().ifBlank { null } }.distinct()
-    }
-
-    private suspend fun cleanupMediaFileIfUnreferenced(filePath: String) {
-        runCatching {
-            if (mediaDao.countMediaReferences(filePath) > 0) return
-
-            val file = if (File(filePath).isAbsolute) {
-                File(filePath)
-            } else {
-                File(context.filesDir, filePath)
-            }
-            if (file.exists()) {
-                file.delete()
-            }
-        }
     }
 
     private fun detectMimeType(filePath: String): String {
@@ -200,5 +240,24 @@ class NoteRepositoryImpl(
             "pdf" -> "application/pdf"
             else -> "application/octet-stream"
         }
+    }
+
+    private fun logCleanupWarnings(
+        operation: String,
+        subject: String,
+        statuses: List<MediaCleanupResult>
+    ) {
+        statuses
+            .filter { it.status == MediaCleanupStatus.FAILED }
+            .forEach { failure ->
+                Log.w(
+                    TAG,
+                    "Media cleanup warning during $operation ($subject, path=${failure.filePath}): ${failure.errorMessage}"
+                )
+            }
+    }
+
+    private companion object {
+        const val TAG = "NoteRepository"
     }
 }

@@ -32,7 +32,7 @@ import com.uteacher.attenote.data.local.entity.StudentEntity
         NoteEntity::class,
         NoteMediaEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(RoomTypeConverters::class)

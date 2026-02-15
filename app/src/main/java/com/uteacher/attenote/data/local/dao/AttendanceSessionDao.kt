@@ -46,6 +46,9 @@ interface AttendanceSessionDao {
     @Query("DELETE FROM attendance_sessions WHERE sessionId = :sessionId")
     suspend fun deleteSession(sessionId: Long): Int
 
+    @Query("DELETE FROM attendance_sessions WHERE classId = :classId")
+    suspend fun deleteAllSessionsForClass(classId: Long): Int
+
     @Query(
         """
         SELECT COUNT(*) FROM attendance_sessions

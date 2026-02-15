@@ -23,6 +23,11 @@ val repositoryModule = module {
         ClassRepositoryImpl(
             classDao = get(),
             scheduleDao = get(),
+            attendanceSessionDao = get(),
+            attendanceRecordDao = get(),
+            noteDao = get(),
+            noteMediaDao = get(),
+            filesDir = androidContext().filesDir,
             db = get()
         ).also {
             Log.d(REPO_TAG, "ClassRepositoryImpl initialized")
@@ -55,7 +60,7 @@ val repositoryModule = module {
             noteDao = get(),
             mediaDao = get(),
             db = get(),
-            context = androidContext()
+            filesDir = androidContext().filesDir
         ).also {
             Log.d(REPO_TAG, "NoteRepositoryImpl initialized")
         }

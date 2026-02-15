@@ -54,6 +54,16 @@ interface AttendanceRecordDao {
 
     @Query(
         """
+        DELETE FROM attendance_records
+        WHERE sessionId IN (
+            SELECT sessionId FROM attendance_sessions WHERE classId = :classId
+        )
+        """
+    )
+    suspend fun deleteAllRecordsForClass(classId: Long): Int
+
+    @Query(
+        """
         SELECT
             COALESCE(SUM(CASE WHEN status = 'PRESENT' THEN 1 ELSE 0 END), 0) AS presentCount,
             COALESCE(SUM(CASE WHEN status = 'ABSENT' THEN 1 ELSE 0 END), 0) AS absentCount,

@@ -658,7 +658,7 @@ class BackupSupportRepositoryImpl(
 
     private companion object {
         const val TAG = "BackupSupportRepo"
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 3
 
         const val EXPORTS_DIR = "exports"
         const val PUBLIC_EXPORT_DIR = "attenote"

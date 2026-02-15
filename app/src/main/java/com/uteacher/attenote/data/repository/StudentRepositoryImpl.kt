@@ -9,6 +9,8 @@ import com.uteacher.attenote.data.local.dao.StudentDao
 import com.uteacher.attenote.data.local.entity.ClassStudentCrossRef
 import com.uteacher.attenote.data.repository.internal.InputNormalizer
 import com.uteacher.attenote.data.repository.internal.RepositoryResult
+import com.uteacher.attenote.data.repository.internal.StudentCascadeDeleteGateway
+import com.uteacher.attenote.data.repository.internal.performStudentCascadeDelete
 import com.uteacher.attenote.domain.mapper.toDomain
 import com.uteacher.attenote.domain.mapper.toEntity
 import com.uteacher.attenote.domain.model.Student
@@ -114,15 +116,23 @@ class StudentRepositoryImpl(
 
     override suspend fun deleteStudentPermanently(studentId: Long): RepositoryResult<Unit> {
         return try {
-            val deletedRows = db.withTransaction {
-                recordDao.deleteAllRecordsForStudent(studentId)
-                studentDao.deleteStudent(studentId)
-            }
-            if (deletedRows == 0) {
-                RepositoryResult.Error("Student not found")
-            } else {
-                RepositoryResult.Success(Unit)
-            }
+            performStudentCascadeDelete(
+                studentId = studentId,
+                gateway = object : StudentCascadeDeleteGateway {
+                    override suspend fun <T> runInTransaction(block: suspend () -> T): T {
+                        return db.withTransaction { block() }
+                    }
+
+                    override suspend fun deleteAttendanceRecordsForStudent(studentId: Long) {
+                        recordDao.deleteAllRecordsForStudent(studentId)
+                    }
+
+                    override suspend fun deleteStudent(studentId: Long): Int {
+                        return studentDao.deleteStudent(studentId)
+                    }
+                }
+            )
+            RepositoryResult.Success(Unit)
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to delete student: ${e.message}")
         }

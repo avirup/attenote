@@ -1,17 +1,27 @@
 package com.uteacher.attenote.data.repository
 
+import android.util.Log
 import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import com.uteacher.attenote.data.local.AppDatabase
+import com.uteacher.attenote.data.local.dao.AttendanceRecordDao
+import com.uteacher.attenote.data.local.dao.AttendanceSessionDao
 import com.uteacher.attenote.data.local.dao.ClassDao
+import com.uteacher.attenote.data.local.dao.NoteDao
+import com.uteacher.attenote.data.local.dao.NoteMediaDao
 import com.uteacher.attenote.data.local.dao.ScheduleDao
+import com.uteacher.attenote.data.repository.internal.ClassCascadeDeleteGateway
+import com.uteacher.attenote.data.repository.internal.LocalMediaFileCleaner
+import com.uteacher.attenote.data.repository.internal.MediaCleanupStatus
 import com.uteacher.attenote.data.repository.internal.InputNormalizer
 import com.uteacher.attenote.data.repository.internal.RepositoryResult
 import com.uteacher.attenote.data.repository.internal.ScheduleValidation
+import com.uteacher.attenote.data.repository.internal.performClassCascadeDelete
 import com.uteacher.attenote.domain.mapper.toDomain
 import com.uteacher.attenote.domain.mapper.toEntity
 import com.uteacher.attenote.domain.model.Class as DomainClass
 import com.uteacher.attenote.domain.model.Schedule
+import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -20,8 +30,14 @@ import kotlinx.coroutines.flow.map
 class ClassRepositoryImpl(
     private val classDao: ClassDao,
     private val scheduleDao: ScheduleDao,
+    private val attendanceSessionDao: AttendanceSessionDao,
+    private val attendanceRecordDao: AttendanceRecordDao,
+    private val noteDao: NoteDao,
+    private val noteMediaDao: NoteMediaDao,
+    filesDir: File,
     private val db: AppDatabase
 ) : ClassRepository {
+    private val mediaFileCleaner = LocalMediaFileCleaner(filesDir)
 
     override fun observeClasses(isOpen: Boolean): Flow<List<DomainClass>> =
         classDao.observeClassesByOpenState(isOpen).map { it.toDomain() }
@@ -130,14 +146,63 @@ class ClassRepositoryImpl(
 
     override suspend fun deleteClassPermanently(classId: Long): RepositoryResult<Unit> {
         return try {
-            val deletedRows = db.withTransaction {
-                classDao.deleteClass(classId)
+            val deleteResult = performClassCascadeDelete(
+                classId = classId,
+                gateway = object : ClassCascadeDeleteGateway {
+                    override suspend fun <T> runInTransaction(block: suspend () -> T): T {
+                        return db.withTransaction { block() }
+                    }
+
+                    override suspend fun getNoteIdsForClass(classId: Long): List<Long> {
+                        return noteDao.getNoteIdsForClass(classId)
+                    }
+
+                    override suspend fun getMediaPathsForNoteIds(noteIds: List<Long>): List<String> {
+                        return noteMediaDao.getMediaPathsForNoteIds(noteIds)
+                    }
+
+                    override suspend fun countMediaReferences(filePath: String): Int {
+                        return noteMediaDao.countMediaReferences(filePath)
+                    }
+
+                    override suspend fun deleteAttendanceRecordsForClass(classId: Long) {
+                        attendanceRecordDao.deleteAllRecordsForClass(classId)
+                    }
+
+                    override suspend fun deleteAttendanceSessionsForClass(classId: Long) {
+                        attendanceSessionDao.deleteAllSessionsForClass(classId)
+                    }
+
+                    override suspend fun deleteSchedulesForClass(classId: Long) {
+                        scheduleDao.deleteAllSchedulesForClass(classId)
+                    }
+
+                    override suspend fun deleteNoteMediaForNoteIds(noteIds: List<Long>) {
+                        noteMediaDao.deleteMediaForNoteIds(noteIds)
+                    }
+
+                    override suspend fun deleteNotesForClass(classId: Long) {
+                        noteDao.deleteNotesForClass(classId)
+                    }
+
+                    override suspend fun deleteClass(classId: Long): Int {
+                        return classDao.deleteClass(classId)
+                    }
+                },
+                cleaner = mediaFileCleaner
+            )
+
+            val cleanupFailures = deleteResult.mediaCleanupResults.filter {
+                it.status == MediaCleanupStatus.FAILED
             }
-            if (deletedRows == 0) {
-                RepositoryResult.Error("Class not found")
-            } else {
-                RepositoryResult.Success(Unit)
+            cleanupFailures.forEach { failure ->
+                Log.w(
+                    TAG,
+                    "Media cleanup warning after class delete (classId=$classId, path=${failure.filePath}): ${failure.errorMessage}"
+                )
             }
+
+            RepositoryResult.Success(Unit)
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to delete class: ${e.message}")
         }
@@ -214,5 +279,9 @@ class ClassRepositoryImpl(
             }
         }
         return null
+    }
+
+    private companion object {
+        const val TAG = "ClassRepository"
     }
 }

@@ -25,6 +25,9 @@ interface NoteMediaDao {
     @Query("SELECT filePath FROM note_media")
     suspend fun getAllFilePaths(): List<String>
 
+    @Query("SELECT filePath FROM note_media WHERE noteId IN (:noteIds)")
+    suspend fun getMediaPathsForNoteIds(noteIds: List<Long>): List<String>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMedia(media: NoteMediaEntity): Long
 
@@ -36,6 +39,9 @@ interface NoteMediaDao {
 
     @Query("DELETE FROM note_media WHERE mediaId = :mediaId")
     suspend fun deleteMedia(mediaId: Long): Int
+
+    @Query("DELETE FROM note_media WHERE noteId IN (:noteIds)")
+    suspend fun deleteMediaForNoteIds(noteIds: List<Long>): Int
 
     @Query("DELETE FROM note_media WHERE noteId = :noteId")
     suspend fun deleteAllMediaForNote(noteId: Long): Int

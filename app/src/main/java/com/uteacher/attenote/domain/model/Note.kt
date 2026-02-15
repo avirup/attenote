@@ -8,5 +8,6 @@ data class Note(
     val content: String,
     val date: LocalDate,
     val createdAt: LocalDate,
-    val updatedAt: LocalDate
+    val updatedAt: LocalDate,
+    val classId: Long? = null
 )

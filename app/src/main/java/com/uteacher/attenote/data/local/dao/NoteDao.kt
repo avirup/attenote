@@ -32,11 +32,17 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE noteId = :id")
     suspend fun getNoteWithMedia(id: Long): NoteWithMedia?
 
+    @Query("SELECT noteId FROM notes WHERE classId = :classId")
+    suspend fun getNoteIdsForClass(classId: Long): List<Long>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertNote(note: NoteEntity): Long
 
     @Update
     suspend fun updateNote(note: NoteEntity): Int
+
+    @Query("DELETE FROM notes WHERE classId = :classId")
+    suspend fun deleteNotesForClass(classId: Long): Int
 
     @Query("DELETE FROM notes WHERE noteId = :noteId")
     suspend fun deleteNote(noteId: Long): Int

@@ -155,7 +155,8 @@ fun NoteEntity.toDomain() = Note(
     content = content,
     date = date,
     createdAt = createdAt,
-    updatedAt = updatedAt
+    updatedAt = updatedAt,
+    classId = classId
 )
 
 fun Note.toEntity() = NoteEntity(
@@ -163,6 +164,7 @@ fun Note.toEntity() = NoteEntity(
     title = title,
     content = content,
     date = date,
+    classId = classId,
     createdAt = createdAt,
     updatedAt = updatedAt
 )
