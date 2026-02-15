@@ -5,10 +5,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -103,12 +102,8 @@ fun TakeAttendanceScreen(
         if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
             onSetActionBarPrimaryAction(
                 ActionBarPrimaryAction(
-                    title = when {
-                        uiState.isSaving -> "Saving..."
-                        uiState.isAutoSaving -> "Saving draft..."
-                        else -> "Save"
-                    },
-                    enabled = !uiState.isLoading && !uiState.isSaving && !uiState.isAutoSaving,
+                    title = if (uiState.isSaving) "Saving..." else "Save",
+                    enabled = !uiState.isLoading && !uiState.isSaving,
                     onClick = onSaveClick
                 )
             )
@@ -120,7 +115,7 @@ fun TakeAttendanceScreen(
                 onSetActionBarPrimaryAction(
                     ActionBarPrimaryAction(
                         title = "Save",
-                        enabled = !latestIsAutoSaving,
+                        enabled = !latestIsSaving,
                         onClick = onSaveClick
                     )
                 )
@@ -183,6 +178,7 @@ fun TakeAttendanceScreen(
             else -> {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     bottomBar = {
                         LessonNotesBottomBar(
                             lessonNotes = uiState.lessonNotes,
@@ -344,10 +340,7 @@ private fun LessonNotesBottomBar(
     isAutoSaving: Boolean
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .imePadding(),
+        modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 3.dp,
         shadowElevation = 3.dp

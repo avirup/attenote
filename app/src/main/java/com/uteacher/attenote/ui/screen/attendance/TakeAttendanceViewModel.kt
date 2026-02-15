@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class TakeAttendanceViewModel(
     private val classId: Long,
@@ -268,6 +269,17 @@ class TakeAttendanceViewModel(
         saveAttendance(markSuccess = false)
     }
 
+    override fun onCleared() {
+        lessonNoteAutoSaveJob?.cancel()
+        val state = _uiState.value
+        if (state.hasPendingChanges && canPersistAttendance(state)) {
+            runBlocking {
+                persistAttendance(state)
+            }
+        }
+        super.onCleared()
+    }
+
     private fun scheduleLessonNoteAutoSave() {
         lessonNoteAutoSaveJob?.cancel()
         lessonNoteAutoSaveJob = viewModelScope.launch {
@@ -278,7 +290,6 @@ class TakeAttendanceViewModel(
 
     private fun saveAttendance(markSuccess: Boolean) {
         val state = _uiState.value
-        val date = state.date
 
         if (
             state.isLoading ||
@@ -293,7 +304,7 @@ class TakeAttendanceViewModel(
             return
         }
 
-        if (date == null) {
+        if (!canPersistAttendance(state)) {
             if (markSuccess) {
                 _uiState.update { it.copy(error = "Invalid date") }
             }
@@ -317,22 +328,8 @@ class TakeAttendanceViewModel(
 
         viewModelScope.launch {
             try {
-                val records = state.attendanceRecords.map { item ->
-                    AttendanceStatusInput(
-                        studentId = item.student.studentId,
-                        status = if (state.isClassTaken) item.status else AttendanceStatus.SKIPPED
-                    )
-                }
-
                 when (
-                    val result = attendanceRepository.saveAttendance(
-                        classId = state.classId,
-                        scheduleId = state.scheduleId,
-                        date = date,
-                        isClassTaken = state.isClassTaken,
-                        lessonNotes = state.lessonNotes.ifBlank { null },
-                        records = records
-                    )
+                    val result = persistAttendance(state)
                 ) {
                     is RepositoryResult.Success -> {
                         persistedSnapshot = snapshotToPersist
@@ -377,6 +374,30 @@ class TakeAttendanceViewModel(
                 }
             }
         }
+    }
+
+    private suspend fun persistAttendance(state: TakeAttendanceUiState): RepositoryResult<Long> {
+        val date = state.date ?: return RepositoryResult.Error("Invalid date")
+        val records = state.attendanceRecords.map { item ->
+            AttendanceStatusInput(
+                studentId = item.student.studentId,
+                status = if (state.isClassTaken) item.status else AttendanceStatus.SKIPPED
+            )
+        }
+        return attendanceRepository.saveAttendance(
+            classId = state.classId,
+            scheduleId = state.scheduleId,
+            date = date,
+            isClassTaken = state.isClassTaken,
+            lessonNotes = state.lessonNotes.ifBlank { null },
+            records = records
+        )
+    }
+
+    private fun canPersistAttendance(state: TakeAttendanceUiState): Boolean {
+        return !state.isLoading &&
+            state.date != null &&
+            state.attendanceRecords.isNotEmpty()
     }
 
     private fun withPendingChanges(state: TakeAttendanceUiState): TakeAttendanceUiState {
