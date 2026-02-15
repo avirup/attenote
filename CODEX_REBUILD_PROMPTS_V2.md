@@ -8,7 +8,7 @@ This document provides comprehensive, copy-paste prompts to implement **Version 
 
 ## Document Overview
 
-This V2 guide consists of **10 sequential prompts**. Each prompt is:
+This V2 guide consists of **11 sequential prompts**. Each prompt is:
 - **Self-contained**: complete scope, architecture guidance, and acceptance checks
 - **Device-gated**: must pass build/install/launch before continuing
 - **Incremental**: designed to avoid broad regressions
@@ -32,6 +32,15 @@ Required V2 capabilities covered by this document:
 - Two read-only screens:
   - one to view notes with attached media
   - one to view attendance statistics with lesson notes
+- Notes Only Mode:
+  - Settings toggle to hide all class/attendance views
+  - App behaves as a pure notes app when enabled
+  - Dashboard shows only notes section
+  - FAB menu shows only Settings
+  - Daily Summary shows only note items
+  - Navigation blocks class/attendance routes
+  - No schema changes; purely UI-level gating
+  - Backup/restore always includes full database regardless of mode
 
 ## Rebuild Phases
 
@@ -44,13 +53,16 @@ Required V2 capabilities covered by this document:
 **Phase 3: Deletion + Summaries + Stats Views (Prompts 07-09)**
 - Note/media hard delete UX, class/student soft delete UX, grouped daily summary and stats viewer
 
-**Phase 4: QA and Hardening (Prompt 10)**
+**Phase 4: Notes Only Mode (Prompt 10)**
+- Settings toggle, Dashboard/FAB/DailySummary/navigation gating for notes-only experience
+
+**Phase 5: QA and Hardening (Prompt 11)**
 - Regression, migration validation, edge-case hardening, release readiness
 
 ## How to Use This File
 
 ### Sequential Execution
-1. Run prompts in strict order: `01 -> 02 -> ... -> 10`
+1. Run prompts in strict order: `01 -> 02 -> ... -> 11`
 2. Use one prompt per AI conversation turn (copy full prompt block)
 3. Prepend the Global Prefix to every prompt
 4. Do not skip steps
@@ -605,9 +617,100 @@ Output format:
 ### Git Commit Message (V2 Step 09)
 `feat(v2-step-09): group daily summary by day and add read-only notes-media and attendance-stats viewers`
 
-## Prompt 10 - V2 Regression, Migration QA, and Edge-Case Hardening
+## Prompt 10 - Notes Only Mode (Settings Toggle + UI Gating)
 ```text
-Run a focused V2 quality pass across migration, deletion semantics, and attendance state behavior.
+Implement a Notes Only Mode toggle in Settings that hides all class and attendance views, making the app behave as a pure notes app.
+
+Implement:
+1. DataStore preference
+- Add `notesOnlyMode` boolean preference to `SettingsPreferencesRepository`.
+- Default value: `false` (full app mode with classes + notes).
+- Expose as `Flow<Boolean>` for reactive UI observation.
+
+2. Settings toggle UI
+- Add a new settings section titled "App Mode" in `SettingsScreen`.
+- Place it before the "Default Session Format" section.
+- Include a labeled switch: "Notes Only Mode".
+- Add a descriptive subtitle below the switch: "Hide class, student, and attendance features. The app will function as a notes-only tool."
+- When toggled, persist immediately to DataStore.
+
+3. Dashboard gating
+- Observe `notesOnlyMode` in `DashboardViewModel` and expose in `DashboardUiState`.
+- When enabled:
+  - Hide the "Scheduled Classes" section entirely.
+  - Hide class-date calendar indicators (dots); keep note-date indicators.
+  - The Notes section remains fully visible and functional.
+
+4. FAB menu gating
+- Pass `notesOnlyMode` state to `HamburgerFabMenu`.
+- When enabled:
+  - Hide "Create Class", "Edit Class", and "Manage Students" menu items.
+  - Keep "Settings" menu item visible.
+- If only one item remains, keep the FAB functional with just that single item (no empty-menu state).
+
+5. Daily Summary gating
+- Observe `notesOnlyMode` in `DailySummaryViewModel` and expose in UI state.
+- When enabled:
+  - Hide all `AttendanceSummaryItem` entries from the grouped list.
+  - Show only `NoteSummaryItem` entries.
+  - Day groups with zero remaining items after filtering should be hidden.
+
+6. Navigation route guards
+- In `AppNavHost`, guard class/attendance routes when `notesOnlyMode` is enabled:
+  - `CreateClass`, `ManageClassList`, `EditClass`, `ManageStudents`, `TakeAttendance`
+- If a guarded route is reached (e.g., stale deep link or back-stack), redirect to `Dashboard`.
+- Do NOT remove route registrations from the NavGraph; only guard navigation entry.
+
+7. Read-only viewer gating (V2 viewer screens)
+- If `ViewAttendanceStats` route exists, guard it the same way as attendance routes.
+- `ViewNotesMedia` route remains accessible in both modes.
+
+8. Backup/restore behavior
+- No changes to backup/restore logic.
+- Backup always exports full database (classes, students, attendance, notes) regardless of mode.
+- Restore always imports full database.
+- Toggling Notes Only Mode off after restore reveals all restored class/attendance data.
+
+9. Data integrity
+- Toggling Notes Only Mode does NOT delete, archive, or modify any class/attendance data.
+- All class/attendance data remains intact and queryable in the database.
+- Toggling the mode off immediately restores full app behavior with existing data.
+
+Done criteria:
+- Toggle exists in Settings and persists across app restarts.
+- Dashboard hides class section and class-date indicators when enabled.
+- FAB menu shows only Settings when enabled.
+- Daily Summary shows only notes when enabled.
+- Class/attendance routes are blocked when enabled.
+- Toggling off restores all class/attendance views with data intact.
+- Backup/restore works identically in both modes.
+
+Manual verification checklist:
+- [ ] Settings shows "Notes Only Mode" toggle with description.
+- [ ] Toggle ON: Dashboard "Scheduled Classes" section disappears.
+- [ ] Toggle ON: Calendar dots for class-only dates disappear; note dots remain.
+- [ ] Toggle ON: FAB menu shows only "Settings".
+- [ ] Toggle ON: Daily Summary shows only note items; attendance items hidden.
+- [ ] Toggle ON: Navigating to a class/attendance route redirects to Dashboard.
+- [ ] Toggle OFF: All class/attendance views reappear with data intact.
+- [ ] Toggle persists after app kill and relaunch.
+- [ ] Backup export in Notes Only Mode includes class/attendance data.
+- [ ] Import backup in Notes Only Mode; toggle off; class data visible.
+
+Output format:
+1. Changed files.
+2. Gating strategy summary (which composables check the flag and how).
+3. Device gate command results.
+4. Manual checklist with pass/fail.
+5. Step handoff.
+```
+
+### Git Commit Message (V2 Step 10)
+`feat(v2-step-10): add notes-only mode toggle with UI gating across dashboard, FAB, summary, and navigation`
+
+## Prompt 11 - V2 Regression, Migration QA, and Edge-Case Hardening
+```text
+Run a focused V2 quality pass across migration, deletion semantics, attendance state behavior, and Notes Only Mode.
 
 Implement:
 1. Migration verification suite
@@ -630,18 +733,26 @@ Implement:
 - Soft delete class/student with existing historical attendance.
 - Delete note with multiple media attachments, including missing-file cases.
 
-4. Performance/readability checks
+4. Notes Only Mode edge cases
+- Toggle Notes Only Mode on, navigate through all remaining screens, toggle off.
+- Enable Notes Only Mode with existing class data; verify data survives round-trip.
+- Backup in Notes Only Mode, restore in full mode; verify all data present.
+- Toggle mode rapidly; confirm no stale UI state or navigation crashes.
+- Deep link or back-stack to a class route while Notes Only Mode is active.
+
+5. Performance/readability checks
 - Ensure grouped daily summary remains smooth with larger datasets.
 - Ensure attendance screen remains responsive with search + sticky note + disabled mode.
 - Ensure both read-only viewer screens remain smooth when rendering large note/media and attendance datasets.
 
-5. Documentation updates
-- Update BRD/TRD/addendum notes for V2 behavior.
+6. Documentation updates
+- Update BRD/TRD/addendum notes for V2 behavior including Notes Only Mode.
 - Record deferred items and known non-blockers in `DEFERRED_ISSUES.md` if needed.
 
 Done criteria:
 - No blocker regressions found.
 - Migration and V2 semantics validated on-device.
+- Notes Only Mode gating verified across all affected screens.
 - Known residual risks explicitly documented.
 
 Manual verification checklist:
@@ -650,6 +761,8 @@ Manual verification checklist:
 - [ ] Not Taken -> Skipped behavior verified end-to-end.
 - [ ] Soft delete vs hard delete rules verified.
 - [ ] Grouped summary, `ViewNotesMedia`, and `ViewAttendanceStats` are verified with realistic data.
+- [ ] Notes Only Mode on/off cycle preserves all data and UI state.
+- [ ] Notes Only Mode blocks class/attendance routes without crash.
 
 Output format:
 1. Changed files.
@@ -659,8 +772,8 @@ Output format:
 5. Step handoff.
 ```
 
-### Git Commit Message (V2 Step 10)
-`chore(v2-step-10): complete v2 regression pass, migration QA, and edge-case hardening`
+### Git Commit Message (V2 Step 11)
+`chore(v2-step-11): complete v2 regression pass, migration QA, notes-only-mode QA, and edge-case hardening`
 
 ## Quick Tracker Template (Use After Each Step)
 ```text
