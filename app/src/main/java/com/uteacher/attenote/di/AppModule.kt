@@ -1,7 +1,6 @@
 package com.uteacher.attenote.di
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
@@ -17,17 +16,13 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
 
 val appModule = module {
     single {
-        val appContext = androidContext()
-        val isDebugBuild = (appContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        val builder = Room.databaseBuilder(
-            appContext,
+        Room.databaseBuilder(
+            androidContext(),
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-        if (isDebugBuild) {
-            builder.fallbackToDestructiveMigration(dropAllTables = true)
-        }
-        builder.build()
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
     }
 
     single { get<AppDatabase>().classDao() }

@@ -1,5 +1,6 @@
 package com.uteacher.attenote.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -35,6 +36,8 @@ data class AttendanceSessionEntity(
     val classId: Long,
     val scheduleId: Long,
     val date: LocalDate,
+    @ColumnInfo(defaultValue = "1")
+    val isClassTaken: Boolean = true,
     val lessonNotes: String? = null,
     val createdAt: LocalDate = LocalDate.now()
 )

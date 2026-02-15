@@ -42,19 +42,23 @@ class ClassRepositoryImpl(
         schedules: List<Schedule>
     ): RepositoryResult<Long> {
         val normalizedClass = class_.normalizeIdentity()
+        val schedulesForPersistence = when (val result = normalizeSchedulesForPersistence(schedules)) {
+            is RepositoryResult.Success -> result.data
+            is RepositoryResult.Error -> return result
+        }
 
         if (hasDuplicateIdentity(normalizedClass)) {
             return RepositoryResult.Error("Class already exists with this identity")
         }
 
-        validateSchedules(schedules)?.let { return RepositoryResult.Error(it) }
+        validateSchedules(schedulesForPersistence)?.let { return RepositoryResult.Error(it) }
 
         return try {
             val classId = db.withTransaction {
                 val insertedId = classDao.insertClass(normalizedClass.toEntity())
-                if (schedules.isNotEmpty()) {
+                if (schedulesForPersistence.isNotEmpty()) {
                     scheduleDao.insertSchedules(
-                        schedules.map { it.copy(classId = insertedId) }.toEntity()
+                        schedulesForPersistence.map { it.copy(classId = insertedId) }.toEntity()
                     )
                 }
                 insertedId
@@ -164,10 +168,32 @@ class ClassRepositoryImpl(
         )
     }
 
+    private fun normalizeSchedulesForPersistence(
+        schedules: List<Schedule>
+    ): RepositoryResult<List<Schedule>> {
+        val normalizedSchedules = schedules.map { schedule ->
+            ScheduleValidation.validateTimeOrder(schedule.startTime, schedule.endTime)?.let {
+                return RepositoryResult.Error(it)
+            }
+
+            val durationMinutes = ScheduleValidation.computeDurationMinutes(
+                startTime = schedule.startTime,
+                endTime = schedule.endTime
+            )
+            if (durationMinutes <= 0) {
+                return RepositoryResult.Error("Class duration must be greater than 0 minutes")
+            }
+
+            schedule.copy(durationMinutes = durationMinutes)
+        }
+
+        return RepositoryResult.Success(normalizedSchedules)
+    }
+
     private fun validateSchedules(schedules: List<Schedule>): String? {
         schedules.forEach { schedule ->
-            ScheduleValidation.validateTimeOrder(schedule.startTime, schedule.endTime)?.let {
-                return it
+            if (schedule.durationMinutes <= 0) {
+                return "Class duration must be greater than 0 minutes"
             }
         }
 

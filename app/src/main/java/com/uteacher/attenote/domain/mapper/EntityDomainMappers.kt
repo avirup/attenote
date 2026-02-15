@@ -9,6 +9,7 @@ import com.uteacher.attenote.data.local.entity.NoteMediaEntity
 import com.uteacher.attenote.data.local.entity.ScheduleEntity
 import com.uteacher.attenote.data.local.entity.StudentEntity
 import com.uteacher.attenote.domain.model.AttendanceRecord
+import com.uteacher.attenote.domain.model.AttendanceStatus
 import com.uteacher.attenote.domain.model.AttendanceSession
 import com.uteacher.attenote.domain.model.Class as DomainClass
 import com.uteacher.attenote.domain.model.ClassStudentLink
@@ -16,6 +17,7 @@ import com.uteacher.attenote.domain.model.Note
 import com.uteacher.attenote.domain.model.NoteMedia
 import com.uteacher.attenote.domain.model.Schedule
 import com.uteacher.attenote.domain.model.Student
+import java.time.temporal.ChronoUnit
 import kotlin.jvm.JvmName
 
 fun ClassEntity.toDomain() = DomainClass(
@@ -55,6 +57,7 @@ fun StudentEntity.toDomain() = Student(
     rollNumber = rollNumber,
     email = email,
     phone = phone,
+    department = department,
     isActive = isActive,
     createdAt = createdAt
 )
@@ -66,6 +69,7 @@ fun Student.toEntity() = StudentEntity(
     rollNumber = rollNumber,
     email = email,
     phone = phone,
+    department = department,
     isActive = isActive,
     createdAt = createdAt
 )
@@ -89,7 +93,8 @@ fun ScheduleEntity.toDomain() = Schedule(
     classId = classId,
     dayOfWeek = dayOfWeek,
     startTime = startTime,
-    endTime = endTime
+    endTime = endTime,
+    durationMinutes = durationMinutes
 )
 
 fun Schedule.toEntity() = ScheduleEntity(
@@ -97,7 +102,9 @@ fun Schedule.toEntity() = ScheduleEntity(
     classId = classId,
     dayOfWeek = dayOfWeek,
     startTime = startTime,
-    endTime = endTime
+    endTime = endTime,
+    durationMinutes = durationMinutes.takeIf { it > 0 }
+        ?: ChronoUnit.MINUTES.between(startTime, endTime).toInt()
 )
 
 fun AttendanceSessionEntity.toDomain() = AttendanceSession(
@@ -105,6 +112,7 @@ fun AttendanceSessionEntity.toDomain() = AttendanceSession(
     classId = classId,
     scheduleId = scheduleId,
     date = date,
+    isClassTaken = isClassTaken,
     lessonNotes = lessonNotes,
     createdAt = createdAt
 )
@@ -114,23 +122,32 @@ fun AttendanceSession.toEntity() = AttendanceSessionEntity(
     classId = classId,
     scheduleId = scheduleId,
     date = date,
+    isClassTaken = isClassTaken,
     lessonNotes = lessonNotes,
     createdAt = createdAt
 )
 
-fun AttendanceRecordEntity.toDomain() = AttendanceRecord(
-    recordId = recordId,
-    sessionId = sessionId,
-    studentId = studentId,
-    isPresent = isPresent
-)
+fun AttendanceRecordEntity.toDomain(): AttendanceRecord {
+    val resolvedStatus = status.toAttendanceStatus(legacyIsPresent = isPresent)
+    return AttendanceRecord(
+        recordId = recordId,
+        sessionId = sessionId,
+        studentId = studentId,
+        isPresent = resolvedStatus == AttendanceStatus.PRESENT,
+        status = resolvedStatus
+    )
+}
 
-fun AttendanceRecord.toEntity() = AttendanceRecordEntity(
-    recordId = recordId,
-    sessionId = sessionId,
-    studentId = studentId,
-    isPresent = isPresent
-)
+fun AttendanceRecord.toEntity(): AttendanceRecordEntity {
+    val resolvedStatus = status
+    return AttendanceRecordEntity(
+        recordId = recordId,
+        sessionId = sessionId,
+        studentId = studentId,
+        isPresent = resolvedStatus == AttendanceStatus.PRESENT,
+        status = resolvedStatus.name
+    )
+}
 
 fun NoteEntity.toDomain() = Note(
     noteId = noteId,
@@ -165,6 +182,15 @@ fun NoteMedia.toEntity() = NoteMediaEntity(
     mimeType = mimeType,
     addedAt = addedAt
 )
+
+private fun String.toAttendanceStatus(legacyIsPresent: Boolean): AttendanceStatus {
+    return when (trim().uppercase()) {
+        AttendanceStatus.PRESENT.name -> AttendanceStatus.PRESENT
+        AttendanceStatus.ABSENT.name -> AttendanceStatus.ABSENT
+        AttendanceStatus.SKIPPED.name -> AttendanceStatus.SKIPPED
+        else -> if (legacyIsPresent) AttendanceStatus.PRESENT else AttendanceStatus.ABSENT
+    }
+}
 
 @JvmName("classEntityListToDomain")
 fun List<ClassEntity>.toDomain() = map { it.toDomain() }

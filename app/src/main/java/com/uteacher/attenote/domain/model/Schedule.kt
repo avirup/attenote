@@ -8,5 +8,6 @@ data class Schedule(
     val classId: Long,
     val dayOfWeek: DayOfWeek,
     val startTime: LocalTime,
-    val endTime: LocalTime
+    val endTime: LocalTime,
+    val durationMinutes: Int = 0
 )

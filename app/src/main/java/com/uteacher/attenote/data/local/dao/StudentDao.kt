@@ -38,6 +38,7 @@ interface StudentDao {
             s.rollNumber,
             s.email,
             s.phone,
+            s.department,
             s.isActive,
             s.createdAt,
             cs.isActiveInClass AS isActiveInClass

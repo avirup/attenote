@@ -1,5 +1,6 @@
 package com.uteacher.attenote.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -28,5 +29,7 @@ data class ScheduleEntity(
     val classId: Long,
     val dayOfWeek: DayOfWeek,
     val startTime: LocalTime,
-    val endTime: LocalTime
+    val endTime: LocalTime,
+    @ColumnInfo(defaultValue = "0")
+    val durationMinutes: Int = 0
 )

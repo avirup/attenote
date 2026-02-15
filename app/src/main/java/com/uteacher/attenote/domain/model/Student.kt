@@ -9,6 +9,7 @@ data class Student(
     val rollNumber: String?,
     val email: String?,
     val phone: String?,
+    val department: String = "",
     val isActive: Boolean,
     val createdAt: LocalDate
 )

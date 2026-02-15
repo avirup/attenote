@@ -7,6 +7,7 @@ data class AttendanceSession(
     val classId: Long,
     val scheduleId: Long,
     val date: LocalDate,
+    val isClassTaken: Boolean = true,
     val lessonNotes: String?,
     val createdAt: LocalDate
 )

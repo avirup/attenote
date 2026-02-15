@@ -2,6 +2,7 @@ package com.uteacher.attenote.data.repository.internal
 
 import com.uteacher.attenote.domain.model.Schedule
 import java.time.LocalTime
+import java.time.temporal.ChronoUnit
 
 object ScheduleValidation {
 
@@ -11,6 +12,10 @@ object ScheduleValidation {
         } else {
             null
         }
+    }
+
+    fun computeDurationMinutes(startTime: LocalTime, endTime: LocalTime): Int {
+        return ChronoUnit.MINUTES.between(startTime, endTime).toInt()
     }
 
     /**

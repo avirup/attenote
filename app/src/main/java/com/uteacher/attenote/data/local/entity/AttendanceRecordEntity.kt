@@ -1,5 +1,6 @@
 package com.uteacher.attenote.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -32,5 +33,7 @@ data class AttendanceRecordEntity(
     val recordId: Long = 0L,
     val sessionId: Long,
     val studentId: Long,
-    val isPresent: Boolean = true
+    val isPresent: Boolean = true,
+    @ColumnInfo(defaultValue = "'PRESENT'")
+    val status: String = "PRESENT"
 )

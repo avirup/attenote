@@ -199,7 +199,8 @@ class StudentRepositoryImpl(
             registrationNumber = InputNormalizer.normalize(registrationNumber),
             rollNumber = rollNumber?.trim()?.ifBlank { null },
             email = email?.trim()?.ifBlank { null },
-            phone = phone?.trim()?.ifBlank { null }
+            phone = phone?.trim()?.ifBlank { null },
+            department = InputNormalizer.normalize(department).ifBlank { "" }
         )
     }
 }

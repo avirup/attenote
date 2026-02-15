@@ -1,5 +1,6 @@
 package com.uteacher.attenote.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -19,6 +20,8 @@ data class StudentEntity(
     val rollNumber: String? = null,
     val email: String? = null,
     val phone: String? = null,
+    @ColumnInfo(defaultValue = "''")
+    val department: String = "",
     val isActive: Boolean = true,
     val createdAt: LocalDate = LocalDate.now()
 )
