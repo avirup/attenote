@@ -252,6 +252,7 @@ class MainActivity : FragmentActivity() {
         val bar = actionBar ?: return
         ensureActionBarBranding(bar)
         ensureActionBarBrandView(bar)
+        val shouldShowBack = showBack && SHOW_ACTION_BAR_BACK_BUTTON
 
         val isBrandedHeader = title == DASHBOARD_ACTION_BAR_TITLE || title == SPLASH_ACTION_BAR_TITLE
         if (lastBrandedHeaderState != isBrandedHeader) {
@@ -264,10 +265,10 @@ class MainActivity : FragmentActivity() {
             actionBarBrandTitleView?.text = title
             lastActionBarTitle = title
         }
-        if (lastActionBarBackState != showBack) {
-            bar.setDisplayHomeAsUpEnabled(showBack)
+        if (lastActionBarBackState != shouldShowBack) {
+            bar.setDisplayHomeAsUpEnabled(shouldShowBack)
             bar.setDisplayShowHomeEnabled(false)
-            lastActionBarBackState = showBack
+            lastActionBarBackState = shouldShowBack
         }
     }
 
@@ -383,5 +384,6 @@ class MainActivity : FragmentActivity() {
         private const val DASHBOARD_ACTION_BAR_TITLE = "Dashboard"
         private const val SPLASH_ACTION_BAR_TITLE = "Splash"
         private const val BRAND_PRIMARY_COLOR_INT = -10793744 // #5B4CF0
+        private const val SHOW_ACTION_BAR_BACK_BUTTON = false
     }
 }
