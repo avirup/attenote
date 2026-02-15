@@ -114,6 +114,37 @@ class StudentRepositoryImpl(
         }
     }
 
+    override suspend fun mergeStudentIntoExisting(
+        sourceStudentId: Long,
+        targetStudentId: Long
+    ): RepositoryResult<Unit> {
+        if (sourceStudentId == targetStudentId) {
+            return RepositoryResult.Error("Cannot merge a student into itself")
+        }
+
+        return try {
+            db.withTransaction {
+                val sourceStudent = studentDao.getStudentById(sourceStudentId)
+                    ?: throw IllegalStateException("Source student not found")
+                studentDao.getStudentById(targetStudentId)
+                    ?: throw IllegalStateException("Target student not found")
+
+                mergeClassLinks(sourceStudent.studentId, targetStudentId)
+                mergeAttendanceRecords(sourceStudent.studentId, targetStudentId)
+
+                val deletedRows = studentDao.deleteStudent(sourceStudent.studentId)
+                if (deletedRows == 0) {
+                    throw IllegalStateException("Source student not found")
+                }
+            }
+            RepositoryResult.Success(Unit)
+        } catch (e: IllegalStateException) {
+            RepositoryResult.Error(e.message ?: "Failed to merge students")
+        } catch (e: Exception) {
+            RepositoryResult.Error("Failed to merge students: ${e.message}")
+        }
+    }
+
     override suspend fun deleteStudentPermanently(studentId: Long): RepositoryResult<Unit> {
         return try {
             performStudentCascadeDelete(
@@ -138,6 +169,10 @@ class StudentRepositoryImpl(
         }
     }
 
+    @Deprecated(
+        message = "Use deleteStudentPermanently for irreversible cascade delete semantics",
+        replaceWith = ReplaceWith("deleteStudentPermanently(studentId)")
+    )
     override suspend fun deleteStudent(studentId: Long): RepositoryResult<Unit> {
         return deleteStudentPermanently(studentId)
     }
@@ -197,6 +232,37 @@ class StudentRepositoryImpl(
             RepositoryResult.Success(Unit)
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to update class roster state: ${e.message}")
+        }
+    }
+
+    private suspend fun mergeClassLinks(sourceStudentId: Long, targetStudentId: Long) {
+        val sourceLinks = crossRefDao.getLinksForStudent(sourceStudentId)
+        sourceLinks.forEach { sourceLink ->
+            val targetLink = crossRefDao.getLink(sourceLink.classId, targetStudentId)
+            when {
+                targetLink == null -> {
+                    crossRefDao.insertLink(sourceLink.copy(studentId = targetStudentId))
+                }
+
+                !targetLink.isActiveInClass && sourceLink.isActiveInClass -> {
+                    crossRefDao.updateLink(targetLink.copy(isActiveInClass = true))
+                }
+
+                else -> Unit
+            }
+        }
+    }
+
+    private suspend fun mergeAttendanceRecords(sourceStudentId: Long, targetStudentId: Long) {
+        val sourceRecords = recordDao.getRecordsForStudent(sourceStudentId)
+        sourceRecords.forEach { sourceRecord ->
+            val targetRecord = recordDao.getRecord(
+                sessionId = sourceRecord.sessionId,
+                studentId = targetStudentId
+            )
+            if (targetRecord == null) {
+                recordDao.updateRecord(sourceRecord.copy(studentId = targetStudentId))
+            }
         }
     }
 

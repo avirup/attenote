@@ -198,7 +198,11 @@ fun AppNavHost(
                 onActionBarChanged = onActionBarChanged,
                 onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
             )
-            EditClassScreen(classId = route.classId)
+            EditClassScreen(
+                classId = route.classId,
+                onNavigateBack = { navController.popBackStack() },
+                onSetActionBarPrimaryAction = onActionBarPrimaryActionChanged
+            )
         }
 
         composable<AppRoute.ManageStudents> {

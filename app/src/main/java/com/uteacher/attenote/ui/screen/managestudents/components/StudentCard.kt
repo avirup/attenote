@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -83,22 +82,24 @@ fun StudentCard(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                Text(
+                    text = if (student.isActive) "Active" else "Inactive",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+                TextButton(
+                    onClick = { onActiveToggled(!student.isActive) }
                 ) {
                     Text(
-                        text = if (student.isActive) "Active" else "Inactive",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                    Switch(
-                        checked = student.isActive,
-                        onCheckedChange = onActiveToggled
+                        text = if (student.isActive) {
+                            "Mark Inactive"
+                        } else {
+                            "Mark Active"
+                        },
+                        style = MaterialTheme.typography.labelSmall
                     )
                 }
-
                 TextButton(onClick = onEditClicked) {
                     Text(text = "Edit", style = MaterialTheme.typography.labelSmall)
                 }

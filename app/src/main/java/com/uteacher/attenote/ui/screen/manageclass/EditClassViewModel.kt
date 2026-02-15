@@ -32,7 +32,7 @@ class EditClassViewModel(
             _uiState.update {
                 it.copy(
                     isLoading = false,
-                    saveError = "Invalid class route parameters"
+                    classNotFoundMessage = "Invalid class route parameters"
                 )
             }
         } else {
@@ -47,7 +47,7 @@ class EditClassViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        saveError = "Class not found"
+                        classNotFoundMessage = "Class not found"
                     )
                 }
                 return@launch
@@ -59,7 +59,9 @@ class EditClassViewModel(
                     startDate = classItem.startDate,
                     endDate = classItem.endDate,
                     isLoading = true,
-                    saveError = null
+                    saveError = null,
+                    classNotFoundMessage = null,
+                    shouldNavigateBack = false
                 )
             }
 
@@ -80,17 +82,28 @@ class EditClassViewModel(
                 }
                 .collect { (roster, allStudents, allClasses) ->
                     _uiState.update { state ->
-                        state.copy(
-                            students = roster.map { studentWithStatus ->
-                                StudentInClass(
-                                    student = studentWithStatus.student,
-                                    isActiveInClass = studentWithStatus.isActiveInClass
-                                )
-                            },
-                            allStudents = allStudents,
-                            availableClasses = allClasses.filter { it.classId != classId },
-                            isLoading = false
-                        )
+                        val classExists = allClasses.any { it.classId == classId }
+                        if (!classExists) {
+                            state.copy(
+                                classItem = null,
+                                isLoading = false,
+                                showDeleteClassConfirmation = false,
+                                classNotFoundMessage = "Class not found",
+                                shouldNavigateBack = true
+                            )
+                        } else {
+                            state.copy(
+                                students = roster.map { studentWithStatus ->
+                                    StudentInClass(
+                                        student = studentWithStatus.student,
+                                        isActiveInClass = studentWithStatus.isActiveInClass
+                                    )
+                                },
+                                allStudents = allStudents,
+                                availableClasses = allClasses.filter { it.classId != classId },
+                                isLoading = false
+                            )
+                        }
                     }
                 }
         }
@@ -254,6 +267,58 @@ class EditClassViewModel(
 
     fun onDismissCopyFromClassDialog() {
         _uiState.update { it.copy(showCopyFromClassDialog = false) }
+    }
+
+    fun onDeleteClassRequested() {
+        val state = _uiState.value
+        if (state.classItem == null || state.isSaving) {
+            return
+        }
+        _uiState.update { it.copy(showDeleteClassConfirmation = true, saveError = null) }
+    }
+
+    fun onDismissDeleteClassDialog() {
+        _uiState.update { it.copy(showDeleteClassConfirmation = false) }
+    }
+
+    fun onConfirmDeleteClass() {
+        val state = _uiState.value
+        val targetClassId = state.classItem?.classId ?: return
+        if (state.isSaving) return
+
+        _uiState.update {
+            it.copy(
+                isSaving = true,
+                showDeleteClassConfirmation = false,
+                saveError = null
+            )
+        }
+
+        viewModelScope.launch {
+            when (val result = classRepository.deleteClassPermanently(targetClassId)) {
+                is RepositoryResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            shouldNavigateBack = true
+                        )
+                    }
+                }
+
+                is RepositoryResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            saveError = result.message
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun onNavigationHandled() {
+        _uiState.update { it.copy(shouldNavigateBack = false) }
     }
 
     fun onAddStudent(name: String, regNumber: String, rollNumber: String?) {

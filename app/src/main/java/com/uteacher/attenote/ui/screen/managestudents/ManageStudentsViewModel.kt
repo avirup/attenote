@@ -33,13 +33,43 @@ class ManageStudentsViewModel(
         viewModelScope.launch {
             try {
                 studentRepository.observeAllStudents().collect { students ->
-                    val sorted = students.sortedBy { it.name.lowercase() }
                     _uiState.update { state ->
-                        state.copy(
-                            allStudents = sorted,
-                            filteredStudents = filterStudents(sorted, state.searchQuery),
-                            isLoading = false,
-                            error = null
+                        val updatedEditingStudent = state.editingStudent?.let { editing ->
+                            students.firstOrNull { it.studentId == editing.studentId }
+                        }
+                        val editorBecameStale =
+                            state.showEditorDialog &&
+                                state.editMode == StudentEditMode.EDIT &&
+                                updatedEditingStudent == null
+
+                        recomputeFilteredState(
+                            state = state.copy(
+                                allStudents = students,
+                                editingStudent = updatedEditingStudent,
+                                showEditorDialog = if (editorBecameStale) false else state.showEditorDialog,
+                                showDeleteStudentConfirmation = if (editorBecameStale) {
+                                    false
+                                } else {
+                                    state.showDeleteStudentConfirmation
+                                },
+                                showMergeConfirmation = if (editorBecameStale) {
+                                    false
+                                } else {
+                                    state.showMergeConfirmation
+                                },
+                                mergeTargetStudent = if (editorBecameStale) {
+                                    null
+                                } else {
+                                    state.mergeTargetStudent
+                                },
+                                isLoading = false,
+                                isSaving = if (editorBecameStale) false else state.isSaving,
+                                error = if (editorBecameStale) {
+                                    "Student no longer exists"
+                                } else {
+                                    null
+                                }
+                            )
                         )
                     }
                 }
@@ -54,26 +84,21 @@ class ManageStudentsViewModel(
         }
     }
 
-    private fun filterStudents(students: List<Student>, query: String): List<Student> {
-        if (query.isBlank()) {
-            return students
-        }
-        val normalizedQuery = normalize(query).lowercase()
-        return students.filter { student ->
-            student.name.lowercase().contains(normalizedQuery) ||
-                student.registrationNumber.lowercase().contains(normalizedQuery) ||
-                (student.rollNumber?.lowercase()?.contains(normalizedQuery) == true) ||
-                (student.email?.lowercase()?.contains(normalizedQuery) == true) ||
-                (student.phone?.lowercase()?.contains(normalizedQuery) == true)
+    fun onSearchQueryChanged(query: String) {
+        _uiState.update { state ->
+            recomputeFilteredState(state.copy(searchQuery = query))
         }
     }
 
-    fun onSearchQueryChanged(query: String) {
+    fun onStatusFilterChanged(filter: StudentStatusFilter) {
         _uiState.update { state ->
-            state.copy(
-                searchQuery = query,
-                filteredStudents = filterStudents(state.allStudents, query)
-            )
+            recomputeFilteredState(state.copy(selectedStatusFilter = filter))
+        }
+    }
+
+    fun onDepartmentFilterChanged(department: String?) {
+        _uiState.update { state ->
+            recomputeFilteredState(state.copy(selectedDepartmentFilter = department))
         }
     }
 
@@ -88,10 +113,7 @@ class ManageStudentsViewModel(
         }
 
         _uiState.update { state ->
-            state.copy(
-                allStudents = optimisticStudents,
-                filteredStudents = filterStudents(optimisticStudents, state.searchQuery)
-            )
+            recomputeFilteredState(state.copy(allStudents = optimisticStudents))
         }
 
         viewModelScope.launch {
@@ -99,10 +121,11 @@ class ManageStudentsViewModel(
                 is RepositoryResult.Success -> Unit
                 is RepositoryResult.Error -> {
                     _uiState.update { state ->
-                        state.copy(
-                            allStudents = previousAllStudents,
-                            filteredStudents = filterStudents(previousAllStudents, state.searchQuery),
-                            error = result.message
+                        recomputeFilteredState(
+                            state.copy(
+                                allStudents = previousAllStudents,
+                                error = result.message
+                            )
                         )
                     }
                 }
@@ -118,12 +141,15 @@ class ManageStudentsViewModel(
                 editingStudent = null,
                 editorName = "",
                 editorRegistrationNumber = "",
+                editorDepartment = "",
                 editorRollNumber = "",
                 editorEmail = "",
                 editorPhone = "",
-                editorIsActive = true,
                 editorNameError = null,
                 editorRegError = null,
+                showDeleteStudentConfirmation = false,
+                showMergeConfirmation = false,
+                mergeTargetStudent = null,
                 editorError = null
             )
         }
@@ -137,12 +163,15 @@ class ManageStudentsViewModel(
                 editingStudent = student,
                 editorName = student.name,
                 editorRegistrationNumber = student.registrationNumber,
+                editorDepartment = student.department,
                 editorRollNumber = student.rollNumber.orEmpty(),
                 editorEmail = student.email.orEmpty(),
                 editorPhone = student.phone.orEmpty(),
-                editorIsActive = student.isActive,
                 editorNameError = null,
                 editorRegError = null,
+                showDeleteStudentConfirmation = false,
+                showMergeConfirmation = false,
+                mergeTargetStudent = null,
                 editorError = null
             )
         }
@@ -152,9 +181,13 @@ class ManageStudentsViewModel(
         _uiState.update {
             it.copy(
                 showEditorDialog = false,
+                showDeleteStudentConfirmation = false,
+                showMergeConfirmation = false,
+                mergeTargetStudent = null,
                 editorNameError = null,
                 editorRegError = null,
-                editorError = null
+                editorError = null,
+                isSaving = false
             )
         }
     }
@@ -173,6 +206,10 @@ class ManageStudentsViewModel(
         }
     }
 
+    fun onEditorDepartmentChanged(value: String) {
+        _uiState.update { it.copy(editorDepartment = value, editorError = null) }
+    }
+
     fun onEditorRollChanged(value: String) {
         _uiState.update { it.copy(editorRollNumber = value, editorError = null) }
     }
@@ -185,8 +222,120 @@ class ManageStudentsViewModel(
         _uiState.update { it.copy(editorPhone = value, editorError = null) }
     }
 
-    fun onEditorActiveToggled(isActive: Boolean) {
-        _uiState.update { it.copy(editorIsActive = isActive) }
+    fun onDeleteStudentRequested() {
+        val state = _uiState.value
+        if (state.editMode != StudentEditMode.EDIT || state.editingStudent == null) {
+            _uiState.update { it.copy(editorError = "Student not found") }
+            return
+        }
+        _uiState.update { it.copy(showDeleteStudentConfirmation = true, editorError = null) }
+    }
+
+    fun onDismissDeleteStudentConfirmation() {
+        _uiState.update { it.copy(showDeleteStudentConfirmation = false) }
+    }
+
+    fun onConfirmDeleteStudent() {
+        val state = _uiState.value
+        val editingStudent = state.editingStudent
+        if (state.isSaving || editingStudent == null) {
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                isSaving = true,
+                showDeleteStudentConfirmation = false,
+                editorError = null
+            )
+        }
+
+        viewModelScope.launch {
+            when (val result = studentRepository.deleteStudentPermanently(editingStudent.studentId)) {
+                is RepositoryResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            showEditorDialog = false,
+                            editingStudent = null,
+                            showDeleteStudentConfirmation = false,
+                            showMergeConfirmation = false,
+                            mergeTargetStudent = null,
+                            editorError = null
+                        )
+                    }
+                }
+
+                is RepositoryResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            editorError = result.message
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun onDismissMergeConfirmation() {
+        _uiState.update {
+            it.copy(
+                showMergeConfirmation = false,
+                mergeTargetStudent = null
+            )
+        }
+    }
+
+    fun onConfirmMergeStudent() {
+        val state = _uiState.value
+        val sourceStudent = state.editingStudent
+        val targetStudent = state.mergeTargetStudent
+
+        if (state.isSaving || sourceStudent == null || targetStudent == null) {
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                isSaving = true,
+                showMergeConfirmation = false,
+                editorError = null
+            )
+        }
+
+        viewModelScope.launch {
+            when (
+                val result = studentRepository.mergeStudentIntoExisting(
+                    sourceStudentId = sourceStudent.studentId,
+                    targetStudentId = targetStudent.studentId
+                )
+            ) {
+                is RepositoryResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            showEditorDialog = false,
+                            editingStudent = null,
+                            mergeTargetStudent = null,
+                            showMergeConfirmation = false,
+                            showDeleteStudentConfirmation = false,
+                            editorError = null
+                        )
+                    }
+                }
+
+                is RepositoryResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            mergeTargetStudent = targetStudent,
+                            editorError = result.message
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun onSaveStudent() {
@@ -220,16 +369,6 @@ class ManageStudentsViewModel(
                     }
                     return
                 }
-
-                val hasRegistrationDuplicate = state.allStudents.any { existing ->
-                    normalize(existing.registrationNumber).equals(normalizedReg, ignoreCase = true)
-                }
-                if (hasRegistrationDuplicate) {
-                    _uiState.update {
-                        it.copy(editorError = "Registration number already exists")
-                    }
-                    return
-                }
             }
 
             StudentEditMode.EDIT -> {
@@ -240,15 +379,31 @@ class ManageStudentsViewModel(
                     }
                     return
                 }
-                val hasNameDuplicate = state.allStudents.any { existing ->
+
+                val conflictStudent = state.allStudents.firstOrNull { existing ->
                     existing.studentId != editingStudent.studentId &&
-                        normalize(existing.name).equals(normalizedName, ignoreCase = true)
+                        normalize(existing.name).equals(normalizedName, ignoreCase = true) &&
+                        normalize(existing.registrationNumber).equals(normalizedReg, ignoreCase = true)
                 }
-                if (hasNameDuplicate) {
-                    _uiState.update {
-                        it.copy(
-                            editorError = "Student with this name and registration number already exists"
-                        )
+
+                if (conflictStudent != null) {
+                    val registrationChanged = normalize(editingStudent.registrationNumber)
+                        .equals(normalizedReg, ignoreCase = true)
+                        .not()
+                    if (registrationChanged) {
+                        _uiState.update {
+                            it.copy(
+                                showMergeConfirmation = true,
+                                mergeTargetStudent = conflictStudent,
+                                editorError = null
+                            )
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                editorError = "Student with this name and registration number already exists"
+                            )
+                        }
                     }
                     return
                 }
@@ -262,15 +417,12 @@ class ManageStudentsViewModel(
             val studentToSave = Student(
                 studentId = editingStudent?.studentId ?: 0L,
                 name = normalize(currentState.editorName),
-                registrationNumber = if (currentState.editMode == StudentEditMode.EDIT) {
-                    editingStudent?.registrationNumber.orEmpty()
-                } else {
-                    normalize(currentState.editorRegistrationNumber)
-                },
+                registrationNumber = normalize(currentState.editorRegistrationNumber),
                 rollNumber = normalize(currentState.editorRollNumber).ifBlank { null },
                 email = normalize(currentState.editorEmail).ifBlank { null },
                 phone = normalize(currentState.editorPhone).ifBlank { null },
-                isActive = currentState.editorIsActive,
+                department = normalize(currentState.editorDepartment).ifBlank { "" },
+                isActive = editingStudent?.isActive ?: true,
                 createdAt = editingStudent?.createdAt ?: LocalDate.now()
             )
 
@@ -287,6 +439,9 @@ class ManageStudentsViewModel(
                             it.copy(
                                 isSaving = false,
                                 showEditorDialog = false,
+                                showDeleteStudentConfirmation = false,
+                                showMergeConfirmation = false,
+                                mergeTargetStudent = null,
                                 editorNameError = null,
                                 editorRegError = null,
                                 editorError = null
@@ -312,6 +467,86 @@ class ManageStudentsViewModel(
                 }
             }
         }
+    }
+
+    private fun recomputeFilteredState(state: ManageStudentsUiState): ManageStudentsUiState {
+        val availableDepartments = buildDepartmentOptions(state.allStudents)
+        val selectedDepartment = state.selectedDepartmentFilter?.let { selected ->
+            availableDepartments.firstOrNull { it.equals(selected, ignoreCase = true) }
+        }
+
+        return state.copy(
+            availableDepartments = availableDepartments,
+            selectedDepartmentFilter = selectedDepartment,
+            filteredStudents = filterStudents(
+                students = state.allStudents,
+                query = state.searchQuery,
+                departmentFilter = selectedDepartment,
+                statusFilter = state.selectedStatusFilter
+            )
+        )
+    }
+
+    private fun filterStudents(
+        students: List<Student>,
+        query: String,
+        departmentFilter: String?,
+        statusFilter: StudentStatusFilter
+    ): List<Student> {
+        val normalizedQuery = normalize(query).lowercase()
+        val normalizedDepartmentFilter = departmentFilter?.let(::normalize)?.lowercase()
+
+        return students
+            .asSequence()
+            .filter { student -> normalize(student.department).isNotBlank() }
+            .filter { student ->
+                when (statusFilter) {
+                    StudentStatusFilter.ALL -> true
+                    StudentStatusFilter.ACTIVE -> student.isActive
+                    StudentStatusFilter.INACTIVE -> !student.isActive
+                }
+            }
+            .filter { student ->
+                if (normalizedDepartmentFilter == null) {
+                    true
+                } else {
+                    normalize(student.department).lowercase() == normalizedDepartmentFilter
+                }
+            }
+            .filter { student ->
+                if (normalizedQuery.isBlank()) {
+                    true
+                } else {
+                    student.name.lowercase().contains(normalizedQuery) ||
+                        student.registrationNumber.lowercase().contains(normalizedQuery) ||
+                        student.rollNumber.orEmpty().lowercase().contains(normalizedQuery) ||
+                        student.email.orEmpty().lowercase().contains(normalizedQuery) ||
+                        student.phone.orEmpty().lowercase().contains(normalizedQuery) ||
+                        student.department.lowercase().contains(normalizedQuery)
+                }
+            }
+            .sortedWith(
+                compareByDescending<Student> { it.isActive }
+                    .thenBy { it.name.lowercase() }
+                    .thenBy { it.registrationNumber.lowercase() }
+            )
+            .toList()
+    }
+
+    private fun buildDepartmentOptions(students: List<Student>): List<String> {
+        val distinctDepartments = linkedMapOf<String, String>()
+        students.forEach { student ->
+            val normalizedDepartment = normalize(student.department)
+            if (normalizedDepartment.isBlank()) {
+                return@forEach
+            }
+            val key = normalizedDepartment.lowercase()
+            if (key !in distinctDepartments) {
+                distinctDepartments[key] = normalizedDepartment
+            }
+        }
+
+        return distinctDepartments.values.sortedBy { it.lowercase() }
     }
 
     private fun normalize(value: String): String {

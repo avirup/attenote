@@ -21,6 +21,7 @@ interface StudentRepository {
     suspend fun createStudent(student: Student): RepositoryResult<Long>
     suspend fun updateStudent(student: Student): RepositoryResult<Unit>
     suspend fun updateStudentActiveState(studentId: Long, isActive: Boolean): RepositoryResult<Unit>
+    suspend fun mergeStudentIntoExisting(sourceStudentId: Long, targetStudentId: Long): RepositoryResult<Unit>
 
     suspend fun deleteStudentPermanently(studentId: Long): RepositoryResult<Unit>
 

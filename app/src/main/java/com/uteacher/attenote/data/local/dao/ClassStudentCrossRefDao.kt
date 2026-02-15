@@ -30,6 +30,15 @@ interface ClassStudentCrossRefDao {
     )
     suspend fun getLink(classId: Long, studentId: Long): ClassStudentCrossRef?
 
+    @Query(
+        """
+        SELECT * FROM class_student_cross_ref
+        WHERE studentId = :studentId
+        ORDER BY classId ASC
+        """
+    )
+    suspend fun getLinksForStudent(studentId: Long): List<ClassStudentCrossRef>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertLink(link: ClassStudentCrossRef): Long
 

@@ -34,6 +34,15 @@ interface AttendanceRecordDao {
     )
     suspend fun getRecord(sessionId: Long, studentId: Long): AttendanceRecordEntity?
 
+    @Query(
+        """
+        SELECT * FROM attendance_records
+        WHERE studentId = :studentId
+        ORDER BY sessionId ASC
+        """
+    )
+    suspend fun getRecordsForStudent(studentId: Long): List<AttendanceRecordEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecord(record: AttendanceRecordEntity): Long
 

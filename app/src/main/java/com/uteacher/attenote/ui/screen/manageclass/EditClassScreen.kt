@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
@@ -18,23 +19,30 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.uteacher.attenote.ui.components.AttenoteDatePickerDialog
+import com.uteacher.attenote.ui.navigation.ActionBarPrimaryAction
 import com.uteacher.attenote.ui.screen.manageclass.components.StudentRosterCard
 import com.uteacher.attenote.ui.screen.manageclass.dialogs.AddStudentDialog
 import com.uteacher.attenote.ui.screen.manageclass.dialogs.CopyFromClassDialog
 import com.uteacher.attenote.ui.screen.manageclass.dialogs.CsvImportDialog
 import com.uteacher.attenote.ui.theme.component.AttenoteButton
+import com.uteacher.attenote.ui.theme.component.AttenoteSecondaryButton
 import com.uteacher.attenote.ui.theme.component.AttenoteSectionCard
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
@@ -45,12 +53,19 @@ private val DateFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy")
 @Composable
 fun EditClassScreen(
     classId: Long,
+    onNavigateBack: () -> Unit,
+    onSetActionBarPrimaryAction: (ActionBarPrimaryAction?) -> Unit,
     viewModel: EditClassViewModel = koinViewModel(parameters = { parametersOf(classId) })
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val transientMessage = remember(uiState.saveError, uiState.operationMessage) {
         uiState.saveError ?: uiState.operationMessage
     }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val onDeleteClassClick = remember(viewModel) { { viewModel.onDeleteClassRequested() } }
+    val latestHasClass by rememberUpdatedState(uiState.classItem != null)
+    val latestIsSaving by rememberUpdatedState(uiState.isSaving)
+    val latestClassNotFound by rememberUpdatedState(uiState.classNotFoundMessage != null)
 
     LaunchedEffect(transientMessage) {
         if (!transientMessage.isNullOrBlank()) {
@@ -59,134 +74,206 @@ fun EditClassScreen(
         }
     }
 
+    LaunchedEffect(uiState.shouldNavigateBack) {
+        if (uiState.shouldNavigateBack) {
+            viewModel.onNavigationHandled()
+            onNavigateBack()
+        }
+    }
+
+    SideEffect {
+        if (
+            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+            latestHasClass &&
+            !latestClassNotFound
+        ) {
+            onSetActionBarPrimaryAction(
+                ActionBarPrimaryAction(
+                    title = "Delete Class",
+                    enabled = !latestIsSaving,
+                    onClick = onDeleteClassClick
+                )
+            )
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (latestHasClass && !latestClassNotFound) {
+                    onSetActionBarPrimaryAction(
+                        ActionBarPrimaryAction(
+                            title = "Delete Class",
+                            enabled = !latestIsSaving,
+                            onClick = onDeleteClassClick
+                        )
+                    )
+                } else {
+                    onSetActionBarPrimaryAction(null)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            onSetActionBarPrimaryAction(null)
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
-        if (uiState.isLoading) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    AttenoteSectionCard(title = "Class Information") {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            uiState.classItem?.let { classItem ->
-                                InfoRow("Class Name", classItem.className)
-                                InfoRow("Subject", classItem.subject)
-                                InfoRow("Institute", classItem.instituteName)
-                                InfoRow("Session", classItem.session)
-                                InfoRow("Department", classItem.department)
-                                InfoRow("Semester", classItem.semester)
-                                if (classItem.section.isNotBlank()) {
-                                    InfoRow("Section", classItem.section)
+        when {
+            uiState.isLoading -> {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
+
+            !uiState.classNotFoundMessage.isNullOrBlank() -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = uiState.classNotFoundMessage!!,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    AttenoteSecondaryButton(
+                        text = "Go Back",
+                        onClick = onNavigateBack,
+                        modifier = Modifier.padding(top = 16.dp)
+                    )
+                }
+            }
+
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        AttenoteSectionCard(title = "Class Information") {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                uiState.classItem?.let { classItem ->
+                                    InfoRow("Class Name", classItem.className)
+                                    InfoRow("Subject", classItem.subject)
+                                    InfoRow("Institute", classItem.instituteName)
+                                    InfoRow("Session", classItem.session)
+                                    InfoRow("Department", classItem.department)
+                                    InfoRow("Semester", classItem.semester)
+                                    if (classItem.section.isNotBlank()) {
+                                        InfoRow("Section", classItem.section)
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                item {
-                    AttenoteSectionCard(title = "Date Range") {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                PickerDisplayField(
-                                    value = uiState.startDate?.format(DateFormatter) ?: "",
-                                    label = "Start Date",
-                                    placeholder = "Pick date",
-                                    icon = "\uD83D\uDCC5",
-                                    modifier = Modifier.weight(1f),
-                                    onClick = viewModel::onStartDatePickerRequested
-                                )
+                    item {
+                        AttenoteSectionCard(title = "Date Range") {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    PickerDisplayField(
+                                        value = uiState.startDate?.format(DateFormatter) ?: "",
+                                        label = "Start Date",
+                                        placeholder = "Pick date",
+                                        icon = "\uD83D\uDCC5",
+                                        modifier = Modifier.weight(1f),
+                                        onClick = viewModel::onStartDatePickerRequested
+                                    )
 
-                                PickerDisplayField(
-                                    value = uiState.endDate?.format(DateFormatter) ?: "",
-                                    label = "End Date",
-                                    placeholder = "Pick date",
-                                    icon = "\uD83D\uDCC5",
-                                    modifier = Modifier.weight(1f),
-                                    onClick = viewModel::onEndDatePickerRequested
+                                    PickerDisplayField(
+                                        value = uiState.endDate?.format(DateFormatter) ?: "",
+                                        label = "End Date",
+                                        placeholder = "Pick date",
+                                        icon = "\uD83D\uDCC5",
+                                        modifier = Modifier.weight(1f),
+                                        onClick = viewModel::onEndDatePickerRequested
+                                    )
+                                }
+
+                                if (!uiState.dateRangeError.isNullOrBlank()) {
+                                    Text(
+                                        text = uiState.dateRangeError!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+
+                                if (!uiState.outOfRangeWarning.isNullOrBlank()) {
+                                    Text(
+                                        text = uiState.outOfRangeWarning!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+
+                                AttenoteButton(
+                                    text = if (uiState.isSaving) "Saving..." else "Save Date Range",
+                                    onClick = viewModel::onSaveDateRange,
+                                    enabled = !uiState.isSaving
                                 )
                             }
-
-                            if (!uiState.dateRangeError.isNullOrBlank()) {
-                                Text(
-                                    text = uiState.dateRangeError!!,
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-
-                            if (!uiState.outOfRangeWarning.isNullOrBlank()) {
-                                Text(
-                                    text = uiState.outOfRangeWarning!!,
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-
-                            AttenoteButton(
-                                text = if (uiState.isSaving) "Saving..." else "Save Date Range",
-                                onClick = viewModel::onSaveDateRange,
-                                enabled = !uiState.isSaving
-                            )
                         }
                     }
-                }
 
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Student Roster (${uiState.students.size})",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            TextButton(
-                                onClick = viewModel::onShowAddStudentDialog,
-                                modifier = Modifier.weight(1f)
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Student Roster (${uiState.students.size})",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text(text = "+ Manual", maxLines = 1)
+                                TextButton(
+                                    onClick = viewModel::onShowAddStudentDialog,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(text = "+ Manual", maxLines = 1)
+                                }
+                                TextButton(
+                                    onClick = viewModel::onShowCsvImportDialog,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(text = "CSV Import", maxLines = 1)
+                                }
+                                TextButton(
+                                    onClick = viewModel::onShowCopyFromClassDialog,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(text = "Copy Class", maxLines = 1)
+                                }
                             }
-                            TextButton(
-                                onClick = viewModel::onShowCsvImportDialog,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(text = "CSV Import", maxLines = 1)
-                            }
-                            TextButton(
-                                onClick = viewModel::onShowCopyFromClassDialog,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(text = "Copy Class", maxLines = 1)
-                            }
-                        }
 
-                        AttenoteSectionCard {
-                            if (uiState.students.isEmpty()) {
-                                Text(
-                                    text = "No students in this class",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            } else {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    uiState.students.forEach { studentInClass ->
-                                        StudentRosterCard(
-                                            studentInClass = studentInClass,
-                                            onActiveToggled = { isActive ->
-                                                viewModel.onToggleStudentActiveInClass(
-                                                    studentInClass.student.studentId,
-                                                    isActive
-                                                )
-                                            }
-                                        )
+                            AttenoteSectionCard {
+                                if (uiState.students.isEmpty()) {
+                                    Text(
+                                        text = "No students in this class",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        uiState.students.forEach { studentInClass ->
+                                            StudentRosterCard(
+                                                studentInClass = studentInClass,
+                                                onActiveToggled = { isActive ->
+                                                    viewModel.onToggleStudentActiveInClass(
+                                                        studentInClass.student.studentId,
+                                                        isActive
+                                                    )
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -205,6 +292,31 @@ fun EditClassScreen(
                 Text(text = transientMessage)
             }
         }
+    }
+
+    if (uiState.showDeleteClassConfirmation) {
+        AlertDialog(
+            onDismissRequest = viewModel::onDismissDeleteClassDialog,
+            title = { Text("Delete Class") },
+            text = {
+                Text(
+                    text = "This will permanently delete the class and ALL associated data including schedules, attendance records, and notes. This action cannot be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::onConfirmDeleteClass) {
+                    Text(
+                        text = "Delete",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::onDismissDeleteClassDialog) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (uiState.showDatePicker) {
