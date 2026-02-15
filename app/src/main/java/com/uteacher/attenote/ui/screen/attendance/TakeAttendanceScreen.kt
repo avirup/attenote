@@ -4,12 +4,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
@@ -56,6 +58,12 @@ fun TakeAttendanceScreen(
     )
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val filteredAttendanceRecords = remember(uiState.attendanceRecords, uiState.searchQuery) {
+        filterAttendanceRecords(
+            records = uiState.attendanceRecords,
+            searchQuery = uiState.searchQuery
+        )
+    }
     val onSaveClick = remember(viewModel) { { viewModel.onSaveClicked() } }
     val latestIsLoading by rememberUpdatedState(uiState.isLoading)
     val latestIsSaving by rememberUpdatedState(uiState.isSaving)
@@ -196,27 +204,77 @@ fun TakeAttendanceScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FilterChip(
+                                        selected = uiState.isClassTaken,
+                                        onClick = { viewModel.onClassTakenChanged(true) },
+                                        enabled = !uiState.isSaving,
+                                        label = { Text("Taken") }
+                                    )
+                                    FilterChip(
+                                        selected = !uiState.isClassTaken,
+                                        onClick = { viewModel.onClassTakenChanged(false) },
+                                        enabled = !uiState.isSaving,
+                                        label = { Text("Not Taken") }
+                                    )
+                                }
+
+                                Text(
+                                    text = if (uiState.isClassTaken) {
+                                        "Class is marked Taken."
+                                    } else {
+                                        "Class is marked Not Taken. Attendance is locked to Skipped."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
 
                     item {
-                        Text(
-                            text = "Students (${uiState.attendanceRecords.size})",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Students",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            AttenoteTextField(
+                                value = uiState.searchQuery,
+                                onValueChange = viewModel::onSearchQueryChanged,
+                                label = "Search by name, registration, or roll",
+                                singleLine = true,
+                                enabled = !uiState.isSaving
+                            )
+                            Text(
+                                text = "Showing ${filteredAttendanceRecords.size} of ${uiState.attendanceRecords.size}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
-                    items(
-                        items = uiState.attendanceRecords,
-                        key = { it.student.studentId }
-                    ) { record ->
-                        AttendanceRecordCard(
-                            record = record,
-                            onTogglePresent = { isPresent ->
-                                viewModel.onToggleStudentPresent(record.student.studentId, isPresent)
-                            }
-                        )
+                    if (filteredAttendanceRecords.isEmpty()) {
+                        item {
+                            Text(
+                                text = "No students match the current search.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        items(
+                            items = filteredAttendanceRecords,
+                            key = { it.student.studentId }
+                        ) { record ->
+                            AttendanceRecordCard(
+                                record = record,
+                                enabled = uiState.isClassTaken && !uiState.isSaving,
+                                onTogglePresent = { isPresent ->
+                                    viewModel.onToggleStudentPresent(record.student.studentId, isPresent)
+                                }
+                            )
+                        }
                     }
 
                     item {
@@ -242,7 +300,6 @@ fun TakeAttendanceScreen(
                             }
                         }
                     }
-
                 }
             }
         }
@@ -256,5 +313,21 @@ fun TakeAttendanceScreen(
                 Text(text = uiState.error!!)
             }
         }
+    }
+}
+
+private fun filterAttendanceRecords(
+    records: List<AttendanceRecordItem>,
+    searchQuery: String
+): List<AttendanceRecordItem> {
+    val query = searchQuery.trim()
+    if (query.isBlank()) {
+        return records
+    }
+
+    return records.filter { record ->
+        record.student.name.contains(query, ignoreCase = true) ||
+            record.student.registrationNumber.contains(query, ignoreCase = true) ||
+            record.student.rollNumber.orEmpty().contains(query, ignoreCase = true)
     }
 }

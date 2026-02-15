@@ -10,6 +10,8 @@ data class TakeAttendanceUiState(
     val date: LocalDate? = null,
     val classItem: Class? = null,
     val schedule: Schedule? = null,
+    val isClassTaken: Boolean = true,
+    val searchQuery: String = "",
     val attendanceRecords: List<AttendanceRecordItem> = emptyList(),
     val lessonNotes: String = "",
     val isLoading: Boolean = true,

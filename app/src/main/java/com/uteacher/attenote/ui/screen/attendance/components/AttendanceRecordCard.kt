@@ -14,23 +14,40 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
+import com.uteacher.attenote.domain.model.AttendanceStatus
 import com.uteacher.attenote.ui.screen.attendance.AttendanceRecordItem
 
 @Composable
 fun AttendanceRecordCard(
     record: AttendanceRecordItem,
     onTogglePresent: (Boolean) -> Unit,
+    enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val statusLabel = when (record.status) {
+        AttendanceStatus.PRESENT -> "Present"
+        AttendanceStatus.ABSENT -> "Absent"
+        AttendanceStatus.SKIPPED -> "Skipped"
+    }
+    val statusColor = when (record.status) {
+        AttendanceStatus.PRESENT -> MaterialTheme.colorScheme.primary
+        AttendanceStatus.ABSENT -> MaterialTheme.colorScheme.error
+        AttendanceStatus.SKIPPED -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val cardColor = when (record.status) {
+        AttendanceStatus.PRESENT -> MaterialTheme.colorScheme.primaryContainer
+        AttendanceStatus.ABSENT -> MaterialTheme.colorScheme.errorContainer
+        AttendanceStatus.SKIPPED -> MaterialTheme.colorScheme.surfaceVariant
+    }
+
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.68f),
         colors = CardDefaults.cardColors(
-            containerColor = if (record.isPresent) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.errorContainer
-            }
+            containerColor = cardColor
         )
     ) {
         Row(
@@ -67,17 +84,14 @@ fun AttendanceRecordCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = if (record.isPresent) "Present" else "Absent",
+                    text = statusLabel,
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (record.isPresent) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    }
+                    color = statusColor
                 )
                 Switch(
-                    checked = record.isPresent,
+                    checked = record.status == AttendanceStatus.PRESENT,
                     onCheckedChange = onTogglePresent,
+                    enabled = enabled,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.primary,
                         uncheckedThumbColor = MaterialTheme.colorScheme.error

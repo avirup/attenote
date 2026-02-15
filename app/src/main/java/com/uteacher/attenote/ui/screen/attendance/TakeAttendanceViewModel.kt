@@ -144,13 +144,19 @@ class TakeAttendanceViewModel(
                 } else {
                     emptyMap()
                 }
+                val isClassTaken = existingSession?.isClassTaken ?: true
 
                 val attendanceRecords = activeStudents
                     .map { student ->
                         val existing = existingRecordsByStudentId[student.studentId]
+                        val resolvedStatus = if (isClassTaken) {
+                            existing?.status ?: AttendanceStatus.PRESENT
+                        } else {
+                            AttendanceStatus.SKIPPED
+                        }
                         AttendanceRecordItem(
                             student = student,
-                            isPresent = existing?.isPresent ?: true
+                            status = resolvedStatus
                         )
                     }
                     .sortedBy { it.student.name.lowercase() }
@@ -160,6 +166,7 @@ class TakeAttendanceViewModel(
                         date = parsedDate,
                         classItem = classItem,
                         schedule = schedule,
+                        isClassTaken = isClassTaken,
                         attendanceRecords = attendanceRecords,
                         lessonNotes = existingSession?.lessonNotes.orEmpty(),
                         isLoading = false,
@@ -178,17 +185,49 @@ class TakeAttendanceViewModel(
         }
     }
 
+    fun onSearchQueryChanged(value: String) {
+        _uiState.update { it.copy(searchQuery = value.trimStart()) }
+    }
+
+    fun onClassTakenChanged(isTaken: Boolean) {
+        _uiState.update { state ->
+            if (state.isSaving || state.isClassTaken == isTaken) {
+                state
+            } else {
+                val normalizedStatus = if (isTaken) {
+                    AttendanceStatus.PRESENT
+                } else {
+                    AttendanceStatus.SKIPPED
+                }
+                state.copy(
+                    isClassTaken = isTaken,
+                    attendanceRecords = state.attendanceRecords.map { it.copy(status = normalizedStatus) }
+                )
+            }
+        }
+    }
+
     fun onToggleStudentPresent(studentId: Long, isPresent: Boolean) {
         _uiState.update { state ->
-            state.copy(
-                attendanceRecords = state.attendanceRecords.map { record ->
-                    if (record.student.studentId == studentId) {
-                        record.copy(isPresent = isPresent)
-                    } else {
-                        record
+            if (!state.isClassTaken || state.isSaving) {
+                state
+            } else {
+                state.copy(
+                    attendanceRecords = state.attendanceRecords.map { record ->
+                        if (record.student.studentId == studentId) {
+                            record.copy(
+                                status = if (isPresent) {
+                                    AttendanceStatus.PRESENT
+                                } else {
+                                    AttendanceStatus.ABSENT
+                                }
+                            )
+                        } else {
+                            record
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     }
 
@@ -229,7 +268,7 @@ class TakeAttendanceViewModel(
                 val records = state.attendanceRecords.map { item ->
                     AttendanceStatusInput(
                         studentId = item.student.studentId,
-                        status = if (item.isPresent) AttendanceStatus.PRESENT else AttendanceStatus.ABSENT
+                        status = if (state.isClassTaken) item.status else AttendanceStatus.SKIPPED
                     )
                 }
 
@@ -238,7 +277,7 @@ class TakeAttendanceViewModel(
                         classId = state.classId,
                         scheduleId = state.scheduleId,
                         date = date,
-                        isClassTaken = true,
+                        isClassTaken = state.isClassTaken,
                         lessonNotes = state.lessonNotes.ifBlank { null },
                         records = records
                     )
