@@ -227,20 +227,13 @@ fun CsvImportDialog(
                                                 color = MaterialTheme.colorScheme.error
                                             )
                                         }
-                                        if (!row.canImport) {
+                                        if (!row.eligibilityMessage.isNullOrBlank()) {
                                             Text(
-                                                text = row.eligibilityMessage ?: "Row is not import-eligible",
+                                                text = row.eligibilityMessage,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.error
                                             )
                                         }
-                                    }
-                                    if (row.eligibilityMessage != null && row.canImport) {
-                                        Text(
-                                            text = row.eligibilityMessage,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.error
-                                        )
                                     }
                                 }
                             }

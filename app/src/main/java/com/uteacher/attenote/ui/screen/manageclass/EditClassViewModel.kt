@@ -9,6 +9,7 @@ import com.uteacher.attenote.data.repository.StudentRepository
 import com.uteacher.attenote.data.repository.internal.RepositoryResult
 import com.uteacher.attenote.domain.model.Student
 import java.time.LocalDate
+import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -512,12 +513,18 @@ class EditClassViewModel(
         }
 
         return deduplicatedRows.map { row ->
-            val matchedExisting = findExistingStudent(row.name, row.registrationNumber)
-            val canImport = !row.name.isNullOrBlank() && !row.registrationNumber.isNullOrBlank()
+            val generatedName = row.name.isNullOrBlank()
+            val generatedRegistrationNumber = row.registrationNumber.isNullOrBlank()
+            val resolvedName = row.name ?: generateFallbackName(row.sourceRowNumber)
+            val resolvedRegistrationNumber =
+                row.registrationNumber ?: generateFallbackRegistrationNumber(row.sourceRowNumber)
+            val hasGeneratedValues = generatedName || generatedRegistrationNumber
+            val matchedExisting = findExistingStudent(resolvedName, resolvedRegistrationNumber)
+            val canImport = true
             CsvStudentRow(
                 sourceRowNumber = row.sourceRowNumber,
-                name = row.name,
-                registrationNumber = row.registrationNumber,
+                name = resolvedName,
+                registrationNumber = resolvedRegistrationNumber,
                 department = row.department,
                 rollNumber = row.rollNumber,
                 email = row.email,
@@ -525,14 +532,14 @@ class EditClassViewModel(
                 matchedExistingStudentId = matchedExisting?.studentId,
                 matchedExistingStudentInactive = matchedExisting?.isActive == false,
                 canImport = canImport,
-                selectedForImport = canImport,
+                selectedForImport = !hasGeneratedValues,
                 eligibilityMessage = when {
-                    row.name.isNullOrBlank() && row.registrationNumber.isNullOrBlank() -> {
-                        "Missing required fields: name and registration number"
-                    }
-
-                    row.name.isNullOrBlank() -> "Missing required field: name"
-                    row.registrationNumber.isNullOrBlank() -> "Missing required field: registration number"
+                    generatedName && generatedRegistrationNumber ->
+                        "Contains generated values for name and registration number."
+                    generatedName ->
+                        "Contains generated value for name."
+                    generatedRegistrationNumber ->
+                        "Contains generated value for registration number."
                     else -> null
                 }
             )
@@ -709,6 +716,22 @@ class EditClassViewModel(
     private fun normalizeOptional(value: String?): String? {
         if (value == null) return null
         return normalizeText(value).ifBlank { null }
+    }
+
+    private fun generateFallbackName(sourceRowNumber: Int): String {
+        return "Student-$sourceRowNumber-${randomSuffix(4)}"
+    }
+
+    private fun generateFallbackRegistrationNumber(sourceRowNumber: Int): String {
+        return "AUTO-$sourceRowNumber-${randomSuffix(5)}"
+    }
+
+    private fun randomSuffix(length: Int): String {
+        return UUID.randomUUID()
+            .toString()
+            .replace("-", "")
+            .uppercase()
+            .take(length)
     }
 
     private data class ParsedCsvStudentRow(

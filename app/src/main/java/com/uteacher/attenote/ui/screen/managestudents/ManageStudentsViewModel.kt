@@ -498,7 +498,6 @@ class ManageStudentsViewModel(
 
         return students
             .asSequence()
-            .filter { student -> normalize(student.department).isNotBlank() }
             .filter { student ->
                 when (statusFilter) {
                     StudentStatusFilter.ALL -> true
