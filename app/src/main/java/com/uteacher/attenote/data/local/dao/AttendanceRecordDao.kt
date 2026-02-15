@@ -9,6 +9,13 @@ import androidx.room.Update
 import com.uteacher.attenote.data.local.entity.AttendanceRecordEntity
 import kotlinx.coroutines.flow.Flow
 
+data class AttendanceCountersProjection(
+    val presentCount: Int,
+    val absentCount: Int,
+    val skippedCount: Int,
+    val totalCount: Int
+)
+
 @Dao
 @JvmSuppressWildcards
 interface AttendanceRecordDao {
@@ -41,4 +48,20 @@ interface AttendanceRecordDao {
 
     @Query("DELETE FROM attendance_records WHERE sessionId = :sessionId")
     suspend fun deleteAllRecordsForSession(sessionId: Long): Int
+
+    @Query("DELETE FROM attendance_records WHERE studentId = :studentId")
+    suspend fun deleteAllRecordsForStudent(studentId: Long): Int
+
+    @Query(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN status = 'PRESENT' THEN 1 ELSE 0 END), 0) AS presentCount,
+            COALESCE(SUM(CASE WHEN status = 'ABSENT' THEN 1 ELSE 0 END), 0) AS absentCount,
+            COALESCE(SUM(CASE WHEN status = 'SKIPPED' THEN 1 ELSE 0 END), 0) AS skippedCount,
+            COUNT(*) AS totalCount
+        FROM attendance_records
+        WHERE sessionId = :sessionId
+        """
+    )
+    suspend fun getAttendanceCountersForSession(sessionId: Long): AttendanceCountersProjection
 }

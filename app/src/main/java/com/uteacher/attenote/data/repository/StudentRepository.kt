@@ -22,7 +22,14 @@ interface StudentRepository {
     suspend fun updateStudent(student: Student): RepositoryResult<Unit>
     suspend fun updateStudentActiveState(studentId: Long, isActive: Boolean): RepositoryResult<Unit>
 
-    suspend fun deleteStudent(studentId: Long): RepositoryResult<Unit>
+    suspend fun deleteStudentPermanently(studentId: Long): RepositoryResult<Unit>
+
+    @Deprecated(
+        message = "Use deleteStudentPermanently for irreversible cascade delete semantics",
+        replaceWith = ReplaceWith("deleteStudentPermanently(studentId)")
+    )
+    suspend fun deleteStudent(studentId: Long): RepositoryResult<Unit> =
+        deleteStudentPermanently(studentId)
 
     suspend fun addStudentToClass(classId: Long, studentId: Long): RepositoryResult<Unit>
     suspend fun removeStudentFromClass(classId: Long, studentId: Long): RepositoryResult<Unit>

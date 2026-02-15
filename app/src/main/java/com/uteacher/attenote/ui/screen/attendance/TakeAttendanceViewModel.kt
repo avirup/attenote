@@ -3,10 +3,11 @@ package com.uteacher.attenote.ui.screen.attendance
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.uteacher.attenote.data.repository.AttendanceRepository
+import com.uteacher.attenote.data.repository.AttendanceStatusInput
 import com.uteacher.attenote.data.repository.ClassRepository
 import com.uteacher.attenote.data.repository.StudentRepository
 import com.uteacher.attenote.data.repository.internal.RepositoryResult
-import com.uteacher.attenote.domain.model.AttendanceRecord
+import com.uteacher.attenote.domain.model.AttendanceStatus
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -226,11 +227,9 @@ class TakeAttendanceViewModel(
         viewModelScope.launch {
             try {
                 val records = state.attendanceRecords.map { item ->
-                    AttendanceRecord(
-                        recordId = 0L,
-                        sessionId = 0L,
+                    AttendanceStatusInput(
                         studentId = item.student.studentId,
-                        isPresent = item.isPresent
+                        status = if (item.isPresent) AttendanceStatus.PRESENT else AttendanceStatus.ABSENT
                     )
                 }
 
@@ -239,6 +238,7 @@ class TakeAttendanceViewModel(
                         classId = state.classId,
                         scheduleId = state.scheduleId,
                         date = date,
+                        isClassTaken = true,
                         lessonNotes = state.lessonNotes.ifBlank { null },
                         records = records
                     )

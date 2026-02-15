@@ -234,6 +234,9 @@ fun EditClassScreen(
             previewData = uiState.csvPreviewData,
             error = uiState.csvImportError,
             onFileSelected = viewModel::onCsvFileSelected,
+            onToggleSelection = viewModel::onToggleCsvRowSelection,
+            onSelectAll = viewModel::onSelectAllCsvRows,
+            onDeselectAll = viewModel::onDeselectAllCsvRows,
             onConfirm = viewModel::onConfirmCsvImport,
             onDismiss = viewModel::onDismissCsvImportDialog
         )

@@ -86,4 +86,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.rich.editor.compose)
     implementation(libs.androidx.work.runtime.ktx)
+
+    testImplementation(libs.junit4)
 }

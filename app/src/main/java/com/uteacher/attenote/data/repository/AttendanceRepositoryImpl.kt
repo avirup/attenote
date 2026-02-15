@@ -5,11 +5,13 @@ import androidx.room.withTransaction
 import com.uteacher.attenote.data.local.AppDatabase
 import com.uteacher.attenote.data.local.dao.AttendanceRecordDao
 import com.uteacher.attenote.data.local.dao.AttendanceSessionDao
+import com.uteacher.attenote.data.repository.internal.AttendanceSaveNormalizer
 import com.uteacher.attenote.data.repository.internal.InputNormalizer
 import com.uteacher.attenote.data.repository.internal.RepositoryResult
 import com.uteacher.attenote.domain.mapper.toDomain
 import com.uteacher.attenote.domain.mapper.toEntity
 import com.uteacher.attenote.domain.model.AttendanceRecord
+import com.uteacher.attenote.domain.model.AttendanceStatus
 import com.uteacher.attenote.domain.model.AttendanceSession
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -42,24 +44,48 @@ class AttendanceRepositoryImpl(
         return sessionDao.findSession(classId, scheduleId, date.toString())?.toDomain()
     }
 
+    override suspend fun getAttendanceCounters(sessionId: Long): AttendanceCounters {
+        val counters = recordDao.getAttendanceCountersForSession(sessionId)
+        return AttendanceCounters(
+            present = counters.presentCount,
+            absent = counters.absentCount,
+            skipped = counters.skippedCount,
+            total = counters.totalCount
+        )
+    }
+
     override suspend fun saveAttendance(
         classId: Long,
         scheduleId: Long,
         date: LocalDate,
+        isClassTaken: Boolean,
         lessonNotes: String?,
-        records: List<AttendanceRecord>
+        records: List<AttendanceStatusInput>
     ): RepositoryResult<Long> {
+        if (records.map { it.studentId }.distinct().size != records.size) {
+            return RepositoryResult.Error("Duplicate student entries are not allowed in attendance save")
+        }
+
         return try {
             val normalizedLessonNotes = lessonNotes
                 ?.let(InputNormalizer::normalize)
                 ?.ifBlank { null }
+            val normalizedRecords = AttendanceSaveNormalizer.normalizeRecordsForSession(
+                isClassTaken = isClassTaken,
+                records = records
+            )
             val dateKey = date.toString()
 
             val sessionId = db.withTransaction {
                 val existingSession = sessionDao.findSession(classId, scheduleId, dateKey)
 
                 val resolvedSessionId = if (existingSession != null) {
-                    sessionDao.updateSession(existingSession.copy(lessonNotes = normalizedLessonNotes))
+                    sessionDao.updateSession(
+                        existingSession.copy(
+                            isClassTaken = isClassTaken,
+                            lessonNotes = normalizedLessonNotes
+                        )
+                    )
                     existingSession.sessionId
                 } else {
                     try {
@@ -69,6 +95,7 @@ class AttendanceRepositoryImpl(
                                 classId = classId,
                                 scheduleId = scheduleId,
                                 date = date,
+                                isClassTaken = isClassTaken,
                                 lessonNotes = normalizedLessonNotes,
                                 createdAt = LocalDate.now()
                             ).toEntity()
@@ -77,14 +104,27 @@ class AttendanceRepositoryImpl(
                         // Another concurrent save created the unique session first.
                         val racedSession = sessionDao.findSession(classId, scheduleId, dateKey)
                             ?: throw IllegalStateException("Failed to resolve attendance session after conflict")
-                        sessionDao.updateSession(racedSession.copy(lessonNotes = normalizedLessonNotes))
+                        sessionDao.updateSession(
+                            racedSession.copy(
+                                isClassTaken = isClassTaken,
+                                lessonNotes = normalizedLessonNotes
+                            )
+                        )
                         racedSession.sessionId
                     }
                 }
 
                 recordDao.deleteAllRecordsForSession(resolvedSessionId)
-                if (records.isNotEmpty()) {
-                    val recordsForSession = records.map { it.copy(sessionId = resolvedSessionId) }
+                if (normalizedRecords.isNotEmpty()) {
+                    val recordsForSession = normalizedRecords.map { statusInput ->
+                        AttendanceRecord(
+                            recordId = 0L,
+                            sessionId = resolvedSessionId,
+                            studentId = statusInput.studentId,
+                            isPresent = statusInput.status == AttendanceStatus.PRESENT,
+                            status = statusInput.status
+                        )
+                    }
                     recordDao.insertRecords(recordsForSession.toEntity())
                 }
 

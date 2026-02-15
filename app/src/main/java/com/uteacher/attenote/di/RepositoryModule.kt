@@ -33,6 +33,7 @@ val repositoryModule = module {
         StudentRepositoryImpl(
             studentDao = get(),
             crossRefDao = get(),
+            recordDao = get(),
             db = get()
         ).also {
             Log.d(REPO_TAG, "StudentRepositoryImpl initialized")

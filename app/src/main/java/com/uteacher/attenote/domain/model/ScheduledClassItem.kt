@@ -11,6 +11,7 @@ data class ScheduledClassItem(
     val dayOfWeek: DayOfWeek,
     val startTime: LocalTime,
     val endTime: LocalTime,
+    val durationMinutes: Int,
     val instituteName: String,
     val session: String,
     val department: String,

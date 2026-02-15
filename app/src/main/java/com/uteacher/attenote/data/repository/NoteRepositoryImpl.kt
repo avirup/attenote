@@ -125,7 +125,7 @@ class NoteRepositoryImpl(
         }
     }
 
-    override suspend fun deleteNote(noteId: Long): RepositoryResult<Unit> {
+    override suspend fun deleteNotePermanently(noteId: Long): RepositoryResult<Unit> {
         val noteWithMedia = noteDao.getNoteWithMedia(noteId)
             ?: return RepositoryResult.Error("Note not found")
 
@@ -144,7 +144,7 @@ class NoteRepositoryImpl(
         }
     }
 
-    override suspend fun deleteMedia(mediaId: Long): RepositoryResult<Unit> {
+    override suspend fun deleteNoteMediaPermanently(mediaId: Long): RepositoryResult<Unit> {
         val media = mediaDao.getMediaById(mediaId)
             ?: return RepositoryResult.Error("Media not found")
 
@@ -158,6 +158,14 @@ class NoteRepositoryImpl(
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to delete media: ${e.message}")
         }
+    }
+
+    override suspend fun deleteNote(noteId: Long): RepositoryResult<Unit> {
+        return deleteNotePermanently(noteId)
+    }
+
+    override suspend fun deleteMedia(mediaId: Long): RepositoryResult<Unit> {
+        return deleteNoteMediaPermanently(mediaId)
     }
 
     private fun normalizeMediaPaths(mediaPaths: List<String>): List<String> {

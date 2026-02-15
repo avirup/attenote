@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,11 +40,16 @@ fun CsvImportDialog(
     previewData: List<CsvStudentRow>,
     error: String?,
     onFileSelected: (content: String) -> Unit,
+    onToggleSelection: (index: Int, selectedForImport: Boolean) -> Unit,
+    onSelectAll: () -> Unit,
+    onDeselectAll: () -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     var localError by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedEligibleCount = previewData.count { it.canImport && it.selectedForImport }
+    val eligibleCount = previewData.count { it.canImport }
 
     val csvPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -132,6 +138,22 @@ fun CsvImportDialog(
                         text = "Preview (${previewData.size})",
                         style = MaterialTheme.typography.labelLarge
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(onClick = onSelectAll) {
+                            Text(text = "Select All")
+                        }
+                        OutlinedButton(onClick = onDeselectAll) {
+                            Text(text = "Deselect All")
+                        }
+                        Text(
+                            text = "$selectedEligibleCount/$eligibleCount selected",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 12.dp)
+                        )
+                    }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -139,53 +161,83 @@ fun CsvImportDialog(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        previewData.forEach { row ->
-                            val warnings = buildList {
-                                if (row.isDuplicate) add("Duplicate")
-                                if (row.alreadyExists) add("Already exists")
-                                if (row.hasWarning && !row.isDuplicate) add("Contains placeholders")
-                            }.joinToString(" • ")
-
+                        previewData.forEachIndexed { index, row ->
                             Card(
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
                             ) {
-                                Column(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = "Name: ${row.name}",
-                                        style = MaterialTheme.typography.bodyMedium
+                                    Checkbox(
+                                        checked = row.selectedForImport,
+                                        onCheckedChange = { checked ->
+                                            onToggleSelection(index, checked)
+                                        },
+                                        enabled = row.canImport
                                     )
-                                    Text(
-                                        text = "Reg: ${row.registrationNumber}",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                    if (!row.rollNumber.isNullOrBlank()) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
                                         Text(
-                                            text = "Roll: ${row.rollNumber}",
+                                            text = "Row ${row.sourceRowNumber}",
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                        Text(
+                                            text = "Name: ${row.name.orEmpty()}",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            text = "Reg: ${row.registrationNumber.orEmpty()}",
                                             style = MaterialTheme.typography.bodySmall
                                         )
+                                        if (!row.department.isNullOrBlank()) {
+                                            Text(
+                                                text = "Department: ${row.department}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                        if (!row.rollNumber.isNullOrBlank()) {
+                                            Text(
+                                                text = "Roll: ${row.rollNumber}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                        if (!row.email.isNullOrBlank()) {
+                                            Text(
+                                                text = "Email: ${row.email}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                        if (!row.phone.isNullOrBlank()) {
+                                            Text(
+                                                text = "Phone: ${row.phone}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                        if (row.matchedExistingStudentInactive) {
+                                            Text(
+                                                text = "Matched existing student (inactive)",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                        if (!row.canImport) {
+                                            Text(
+                                                text = row.eligibilityMessage ?: "Row is not import-eligible",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
                                     }
-                                    if (!row.email.isNullOrBlank()) {
+                                    if (row.eligibilityMessage != null && row.canImport) {
                                         Text(
-                                            text = "Email: ${row.email}",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                    }
-                                    if (!row.phone.isNullOrBlank()) {
-                                        Text(
-                                            text = "Phone: ${row.phone}",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                    }
-                                    if (warnings.isNotBlank()) {
-                                        Text(
-                                            text = warnings,
+                                            text = row.eligibilityMessage,
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.error
                                         )
@@ -199,7 +251,7 @@ fun CsvImportDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = previewData.isNotEmpty(),
+                enabled = selectedEligibleCount > 0,
                 onClick = onConfirm
             ) {
                 Text(text = "Import")
@@ -214,5 +266,5 @@ fun CsvImportDialog(
 }
 
 private fun buildTemplateCsv(): String {
-    return "name,registration_number,roll_number,email,phone\n"
+    return "name,registration_number,department,roll_number,email,phone\n"
 }

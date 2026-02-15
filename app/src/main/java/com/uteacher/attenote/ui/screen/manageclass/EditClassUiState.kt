@@ -32,14 +32,18 @@ data class StudentInClass(
 )
 
 data class CsvStudentRow(
-    val name: String,
-    val registrationNumber: String,
+    val sourceRowNumber: Int,
+    val name: String?,
+    val registrationNumber: String?,
+    val department: String?,
     val rollNumber: String?,
     val email: String?,
     val phone: String?,
-    val isDuplicate: Boolean = false,
-    val alreadyExists: Boolean = false,
-    val hasWarning: Boolean = false
+    val matchedExistingStudentId: Long? = null,
+    val matchedExistingStudentInactive: Boolean = false,
+    val canImport: Boolean = false,
+    val selectedForImport: Boolean = false,
+    val eligibilityMessage: String? = null
 )
 
 enum class DatePickerTarget {

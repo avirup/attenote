@@ -18,6 +18,20 @@ interface NoteRepository {
     suspend fun updateNote(note: Note): RepositoryResult<Unit>
     suspend fun addMediaToNote(noteId: Long, mediaPaths: List<String>): RepositoryResult<Unit>
 
-    suspend fun deleteNote(noteId: Long): RepositoryResult<Unit>
-    suspend fun deleteMedia(mediaId: Long): RepositoryResult<Unit>
+    suspend fun deleteNotePermanently(noteId: Long): RepositoryResult<Unit>
+    suspend fun deleteNoteMediaPermanently(mediaId: Long): RepositoryResult<Unit>
+
+    @Deprecated(
+        message = "Use deleteNotePermanently for irreversible delete semantics",
+        replaceWith = ReplaceWith("deleteNotePermanently(noteId)")
+    )
+    suspend fun deleteNote(noteId: Long): RepositoryResult<Unit> =
+        deleteNotePermanently(noteId)
+
+    @Deprecated(
+        message = "Use deleteNoteMediaPermanently for irreversible delete semantics",
+        replaceWith = ReplaceWith("deleteNoteMediaPermanently(mediaId)")
+    )
+    suspend fun deleteMedia(mediaId: Long): RepositoryResult<Unit> =
+        deleteNoteMediaPermanently(mediaId)
 }

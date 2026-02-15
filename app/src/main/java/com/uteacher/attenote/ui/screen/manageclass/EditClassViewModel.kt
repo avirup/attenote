@@ -341,7 +341,7 @@ class EditClassViewModel(
     fun onCsvFileSelected(csvContent: String) {
         viewModelScope.launch {
             try {
-                val rows = parseCsv(csvContent)
+                val rows = parseCsvPreviewRows(csvContent)
                 if (rows.isEmpty()) {
                     _uiState.update {
                         it.copy(
@@ -352,27 +352,9 @@ class EditClassViewModel(
                     return@launch
                 }
 
-                val seenKeys = mutableSetOf<String>()
-                val previewData = rows.map { row ->
-                    val key = "${row.name.lowercase()}|${row.registrationNumber.lowercase()}"
-                    val isDuplicate = !seenKeys.add(key)
-                    val alreadyExists = _uiState.value.allStudents.any { existing ->
-                        existing.name.equals(row.name, ignoreCase = true) &&
-                            existing.registrationNumber.equals(row.registrationNumber, ignoreCase = true)
-                    }
-
-                    row.copy(
-                        isDuplicate = isDuplicate,
-                        alreadyExists = alreadyExists,
-                        hasWarning = isDuplicate ||
-                            row.name.startsWith("UNKNOWN_") ||
-                            row.registrationNumber.startsWith("UNREG_")
-                    )
-                }
-
                 _uiState.update {
                     it.copy(
-                        csvPreviewData = previewData,
+                        csvPreviewData = rows,
                         csvImportError = null
                     )
                 }
@@ -387,9 +369,43 @@ class EditClassViewModel(
         }
     }
 
-    private fun parseCsv(content: String): List<CsvStudentRow> {
-        val batchTimestamp = System.currentTimeMillis()
-        val rows = mutableListOf<CsvStudentRow>()
+    fun onToggleCsvRowSelection(index: Int, selectedForImport: Boolean) {
+        _uiState.update { state ->
+            if (index !in state.csvPreviewData.indices) {
+                return@update state
+            }
+            val updatedRows = state.csvPreviewData.mapIndexed { rowIndex, row ->
+                if (rowIndex == index && row.canImport) {
+                    row.copy(selectedForImport = selectedForImport)
+                } else {
+                    row
+                }
+            }
+            state.copy(csvPreviewData = updatedRows)
+        }
+    }
+
+    fun onSelectAllCsvRows() {
+        _uiState.update { state ->
+            state.copy(
+                csvPreviewData = state.csvPreviewData.map { row ->
+                    if (row.canImport) row.copy(selectedForImport = true) else row
+                }
+            )
+        }
+    }
+
+    fun onDeselectAllCsvRows() {
+        _uiState.update { state ->
+            state.copy(
+                csvPreviewData = state.csvPreviewData.map { row ->
+                    row.copy(selectedForImport = false)
+                }
+            )
+        }
+    }
+
+    private fun parseCsvPreviewRows(content: String): List<CsvStudentRow> {
         val csvData = csvReader {
             charset = "UTF-8"
             quoteChar = '"'
@@ -397,49 +413,74 @@ class EditClassViewModel(
             escapeChar = '\\'
         }.readAllWithHeader(content.byteInputStream())
 
-        csvData.forEachIndexed { index, row ->
-            val name = row.readValue(
-                "name"
-            )
-            val regNumber = row.readValue(
-                "registrationnumber",
-                "registration_number",
-                "registration number",
-                "regnumber",
-                "reg_number",
-                "reg number"
-            )
-            val rollNumber = row.readValue("rollnumber", "roll_number", "roll number")
-            val email = row.readValue("email")
-            val phone = row.readValue("phone", "phone_number", "phonenumber")
+        val parsedRows = csvData.mapIndexed { index, row ->
+            val name = normalizeOptional(row.readValue(CSV_NAME_HEADER_ALIASES))
+            val registrationNumber = normalizeOptional(row.readValue(CSV_REGISTRATION_HEADER_ALIASES))
+            val department = normalizeOptional(row.readValue(CSV_DEPARTMENT_HEADER_ALIASES))
+            val rollNumber = normalizeOptional(row.readValue(CSV_ROLL_HEADER_ALIASES))
+            val email = normalizeOptional(row.readValue(CSV_EMAIL_HEADER_ALIASES))
+            val phone = normalizeOptional(row.readValue(CSV_PHONE_HEADER_ALIASES))
 
-            val finalName = if (name.isNullOrBlank()) {
-                "UNKNOWN_${batchTimestamp}_${index + 1}"
-            } else {
-                normalizeText(name)
-            }
-            val finalReg = if (regNumber.isNullOrBlank()) {
-                "UNREG_${batchTimestamp}_${index + 1}"
-            } else {
-                normalizeText(regNumber)
-            }
-
-            rows += CsvStudentRow(
-                name = finalName,
-                registrationNumber = finalReg,
-                rollNumber = normalizeOptional(rollNumber),
-                email = normalizeOptional(email),
-                phone = normalizeOptional(phone)
+            ParsedCsvStudentRow(
+                sourceRowNumber = index + 2,
+                name = name,
+                registrationNumber = registrationNumber,
+                department = department,
+                rollNumber = rollNumber,
+                email = email,
+                phone = phone
             )
         }
 
-        return rows
+        val deduplicatedRows = mutableListOf<ParsedCsvStudentRow>()
+        val seenIdentityKeys = linkedSetOf<String>()
+
+        parsedRows.forEach { row ->
+            val identityKey = buildIdentityKey(row.name, row.registrationNumber)
+            if (identityKey == null) {
+                deduplicatedRows += row
+                return@forEach
+            }
+            if (seenIdentityKeys.add(identityKey)) {
+                deduplicatedRows += row
+            }
+        }
+
+        return deduplicatedRows.map { row ->
+            val matchedExisting = findExistingStudent(row.name, row.registrationNumber)
+            val canImport = !row.name.isNullOrBlank() && !row.registrationNumber.isNullOrBlank()
+            CsvStudentRow(
+                sourceRowNumber = row.sourceRowNumber,
+                name = row.name,
+                registrationNumber = row.registrationNumber,
+                department = row.department,
+                rollNumber = row.rollNumber,
+                email = row.email,
+                phone = row.phone,
+                matchedExistingStudentId = matchedExisting?.studentId,
+                matchedExistingStudentInactive = matchedExisting?.isActive == false,
+                canImport = canImport,
+                selectedForImport = canImport,
+                eligibilityMessage = when {
+                    row.name.isNullOrBlank() && row.registrationNumber.isNullOrBlank() -> {
+                        "Missing required fields: name and registration number"
+                    }
+
+                    row.name.isNullOrBlank() -> "Missing required field: name"
+                    row.registrationNumber.isNullOrBlank() -> "Missing required field: registration number"
+                    else -> null
+                }
+            )
+        }
     }
 
     fun onConfirmCsvImport() {
-        val rows = _uiState.value.csvPreviewData.filter { !it.isDuplicate }
+        val state = _uiState.value
+        val rows = state.csvPreviewData.filter { it.canImport && it.selectedForImport }
         if (rows.isEmpty()) {
-            _uiState.update { it.copy(csvImportError = "No rows available for import") }
+            _uiState.update {
+                it.copy(csvImportError = "No import-eligible rows selected")
+            }
             return
         }
 
@@ -447,26 +488,43 @@ class EditClassViewModel(
             var linkedExistingCount = 0
             var createdNewCount = 0
             var skippedCount = 0
+            val rejectedCount = state.csvPreviewData.count { it.canImport && !it.selectedForImport }
 
             rows.forEach { row ->
+                val name = row.name ?: run {
+                    skippedCount += 1
+                    return@forEach
+                }
+                val registrationNumber = row.registrationNumber ?: run {
+                    skippedCount += 1
+                    return@forEach
+                }
+
                 val existing = studentRepository.findStudentByNameAndRegistration(
-                    name = row.name,
-                    registrationNumber = row.registrationNumber
+                    name = name,
+                    registrationNumber = registrationNumber
                 )
 
                 if (existing != null) {
                     studentRepository.addStudentToClass(classId, existing.studentId)
-                    studentRepository.updateStudentActiveInClass(classId, existing.studentId, true)
+                    if (!existing.isActive) {
+                        studentRepository.updateStudentActiveInClass(
+                            classId = classId,
+                            studentId = existing.studentId,
+                            isActive = false
+                        )
+                    }
                     linkedExistingCount += 1
                 } else {
                     val createResult = studentRepository.createStudent(
                         Student(
                             studentId = 0L,
-                            name = row.name,
-                            registrationNumber = row.registrationNumber,
+                            name = name,
+                            registrationNumber = registrationNumber,
                             rollNumber = row.rollNumber,
                             email = row.email,
                             phone = row.phone,
+                            department = row.department.orEmpty(),
                             isActive = true,
                             createdAt = LocalDate.now()
                         )
@@ -475,22 +533,23 @@ class EditClassViewModel(
                     when (createResult) {
                         is RepositoryResult.Success -> {
                             studentRepository.addStudentToClass(classId, createResult.data)
-                            studentRepository.updateStudentActiveInClass(classId, createResult.data, true)
                             createdNewCount += 1
                         }
 
                         is RepositoryResult.Error -> {
                             val existingAfterFailure = studentRepository.findStudentByNameAndRegistration(
-                                name = row.name,
-                                registrationNumber = row.registrationNumber
+                                name = name,
+                                registrationNumber = registrationNumber
                             )
                             if (existingAfterFailure != null) {
                                 studentRepository.addStudentToClass(classId, existingAfterFailure.studentId)
-                                studentRepository.updateStudentActiveInClass(
-                                    classId,
-                                    existingAfterFailure.studentId,
-                                    true
-                                )
+                                if (!existingAfterFailure.isActive) {
+                                    studentRepository.updateStudentActiveInClass(
+                                        classId = classId,
+                                        studentId = existingAfterFailure.studentId,
+                                        isActive = false
+                                    )
+                                }
                                 linkedExistingCount += 1
                             } else {
                                 skippedCount += 1
@@ -504,6 +563,9 @@ class EditClassViewModel(
                 append("CSV import completed")
                 append(" • Linked existing: $linkedExistingCount")
                 append(" • Created new: $createdNewCount")
+                if (rejectedCount > 0) {
+                    append(" • Rejected: $rejectedCount")
+                }
                 if (skippedCount > 0) {
                     append(" • Skipped: $skippedCount")
                 }
@@ -550,14 +612,20 @@ class EditClassViewModel(
         }
     }
 
-    private fun findExistingStudent(name: String, regNumber: String): Student? {
+    private fun findExistingStudent(name: String?, regNumber: String?): Student? {
+        val identityKey = buildIdentityKey(name, regNumber) ?: return null
         return _uiState.value.allStudents.firstOrNull { existing ->
-            existing.name.equals(name, ignoreCase = true) &&
-                existing.registrationNumber.equals(regNumber, ignoreCase = true)
+            buildIdentityKey(existing.name, existing.registrationNumber) == identityKey
         }
     }
 
-    private fun Map<String, String>.readValue(vararg aliases: String): String? {
+    private fun buildIdentityKey(name: String?, regNumber: String?): String? {
+        val normalizedName = normalizeOptional(name) ?: return null
+        val normalizedReg = normalizeOptional(regNumber) ?: return null
+        return "${normalizedName.lowercase()}|${normalizedReg.lowercase()}"
+    }
+
+    private fun Map<String, String>.readValue(aliases: Set<String>): String? {
         val aliasSet = aliases.map(::normalizeHeader).toSet()
         val matched = entries.firstOrNull { normalizeHeader(it.key) in aliasSet }
         return matched?.value?.trim()
@@ -576,5 +644,61 @@ class EditClassViewModel(
     private fun normalizeOptional(value: String?): String? {
         if (value == null) return null
         return normalizeText(value).ifBlank { null }
+    }
+
+    private data class ParsedCsvStudentRow(
+        val sourceRowNumber: Int,
+        val name: String?,
+        val registrationNumber: String?,
+        val department: String?,
+        val rollNumber: String?,
+        val email: String?,
+        val phone: String?
+    )
+
+    private companion object {
+        val CSV_NAME_HEADER_ALIASES = setOf(
+            "name",
+            "student name",
+            "student_name",
+            "full name",
+            "full_name"
+        )
+        val CSV_REGISTRATION_HEADER_ALIASES = setOf(
+            "registration number",
+            "registration_number",
+            "registrationnumber",
+            "registration no",
+            "registration_no",
+            "reg no",
+            "reg_no",
+            "reg number",
+            "reg_number"
+        )
+        val CSV_DEPARTMENT_HEADER_ALIASES = setOf(
+            "department",
+            "dept"
+        )
+        val CSV_ROLL_HEADER_ALIASES = setOf(
+            "roll",
+            "roll no",
+            "roll_no",
+            "roll number",
+            "roll_number",
+            "rollnumber"
+        )
+        val CSV_EMAIL_HEADER_ALIASES = setOf(
+            "email",
+            "email address",
+            "email_address"
+        )
+        val CSV_PHONE_HEADER_ALIASES = setOf(
+            "phone",
+            "phone number",
+            "phone_number",
+            "mobile",
+            "mobile number",
+            "mobile_number"
+        )
     }
 }

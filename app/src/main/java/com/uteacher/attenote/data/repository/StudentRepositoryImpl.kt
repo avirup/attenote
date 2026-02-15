@@ -3,6 +3,7 @@ package com.uteacher.attenote.data.repository
 import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import com.uteacher.attenote.data.local.AppDatabase
+import com.uteacher.attenote.data.local.dao.AttendanceRecordDao
 import com.uteacher.attenote.data.local.dao.ClassStudentCrossRefDao
 import com.uteacher.attenote.data.local.dao.StudentDao
 import com.uteacher.attenote.data.local.entity.ClassStudentCrossRef
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.map
 class StudentRepositoryImpl(
     private val studentDao: StudentDao,
     private val crossRefDao: ClassStudentCrossRefDao,
+    private val recordDao: AttendanceRecordDao,
     private val db: AppDatabase
 ) : StudentRepository {
 
@@ -110,9 +112,12 @@ class StudentRepositoryImpl(
         }
     }
 
-    override suspend fun deleteStudent(studentId: Long): RepositoryResult<Unit> {
+    override suspend fun deleteStudentPermanently(studentId: Long): RepositoryResult<Unit> {
         return try {
-            val deletedRows = studentDao.deleteStudent(studentId)
+            val deletedRows = db.withTransaction {
+                recordDao.deleteAllRecordsForStudent(studentId)
+                studentDao.deleteStudent(studentId)
+            }
             if (deletedRows == 0) {
                 RepositoryResult.Error("Student not found")
             } else {
@@ -121,6 +126,10 @@ class StudentRepositoryImpl(
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to delete student: ${e.message}")
         }
+    }
+
+    override suspend fun deleteStudent(studentId: Long): RepositoryResult<Unit> {
+        return deleteStudentPermanently(studentId)
     }
 
     override suspend fun addStudentToClass(classId: Long, studentId: Long): RepositoryResult<Unit> {
@@ -137,7 +146,7 @@ class StudentRepositoryImpl(
 
                     existingLink.isActiveInClass -> Unit
 
-                    else -> crossRefDao.updateLink(existingLink.copy(isActiveInClass = true))
+                    else -> Unit
                 }
             }
             RepositoryResult.Success(Unit)

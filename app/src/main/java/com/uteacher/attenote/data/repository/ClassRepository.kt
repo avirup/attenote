@@ -23,5 +23,12 @@ interface ClassRepository {
         endDate: LocalDate
     ): RepositoryResult<Unit>
 
-    suspend fun deleteClass(classId: Long): RepositoryResult<Unit>
+    suspend fun deleteClassPermanently(classId: Long): RepositoryResult<Unit>
+
+    @Deprecated(
+        message = "Use deleteClassPermanently for irreversible cascade delete semantics",
+        replaceWith = ReplaceWith("deleteClassPermanently(classId)")
+    )
+    suspend fun deleteClass(classId: Long): RepositoryResult<Unit> =
+        deleteClassPermanently(classId)
 }

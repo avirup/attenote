@@ -128,9 +128,11 @@ class ClassRepositoryImpl(
         }
     }
 
-    override suspend fun deleteClass(classId: Long): RepositoryResult<Unit> {
+    override suspend fun deleteClassPermanently(classId: Long): RepositoryResult<Unit> {
         return try {
-            val deletedRows = classDao.deleteClass(classId)
+            val deletedRows = db.withTransaction {
+                classDao.deleteClass(classId)
+            }
             if (deletedRows == 0) {
                 RepositoryResult.Error("Class not found")
             } else {
@@ -139,6 +141,10 @@ class ClassRepositoryImpl(
         } catch (e: Exception) {
             RepositoryResult.Error("Failed to delete class: ${e.message}")
         }
+    }
+
+    override suspend fun deleteClass(classId: Long): RepositoryResult<Unit> {
+        return deleteClassPermanently(classId)
     }
 
     private suspend fun hasDuplicateIdentity(

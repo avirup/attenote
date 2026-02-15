@@ -111,6 +111,7 @@ class DashboardViewModel(
                         dayOfWeek = schedule.dayOfWeek,
                         startTime = schedule.startTime,
                         endTime = schedule.endTime,
+                        durationMinutes = schedule.durationMinutes,
                         instituteName = classItem.instituteName,
                         session = classItem.session,
                         department = classItem.department,
