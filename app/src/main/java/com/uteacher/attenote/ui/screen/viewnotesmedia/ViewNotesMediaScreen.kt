@@ -6,10 +6,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,7 +34,6 @@ import coil.compose.AsyncImage
 import com.uteacher.attenote.ui.theme.component.AttenoteButton
 import com.uteacher.attenote.ui.theme.component.AttenoteSectionCard
 import java.io.File
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
@@ -69,46 +66,27 @@ fun ViewNotesMediaScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val selectedNote = uiState.selectedNote
-
-                    if (selectedNote != null) {
-                        item(key = "edit-selected-note") {
-                            AttenoteButton(
-                                text = "Edit Selected Note",
-                                onClick = {
-                                    onEditSelectedNote(selectedNote.date.toString(), selectedNote.noteId)
-                                }
-                            )
-                        }
-                    }
-
-                    if (uiState.groupedNotes.isEmpty()) {
-                        item(key = "empty-notes") {
-                            Text(
-                                text = "No notes available in read-only viewer.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } else {
-                        items(
-                            items = uiState.groupedNotes,
-                            key = { group -> "group-${group.date}" }
-                        ) { group ->
-                            NotesDateGroupCard(
-                                group = group,
-                                selectedNoteId = uiState.selectedNoteId,
-                                onSelectNote = viewModel::onNoteSelected
-                            )
-                        }
+                    item(key = "note-details") {
+                        NoteDetailsSection(note = uiState.viewedNote)
                     }
 
                     item(key = "media-gallery") {
                         MediaGallerySection(
-                            selectedNote = uiState.selectedNote,
+                            note = uiState.viewedNote,
                             mediaItems = uiState.mediaItems,
                             onPreviewMedia = viewModel::onPreviewMediaRequested
                         )
+                    }
+
+                    uiState.viewedNote?.let { note ->
+                        item(key = "edit-selected-note") {
+                            AttenoteButton(
+                                text = "Edit Note",
+                                onClick = {
+                                    onEditSelectedNote(note.date.toString(), note.noteId)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -134,83 +112,54 @@ fun ViewNotesMediaScreen(
 }
 
 @Composable
-private fun NotesDateGroupCard(
-    group: ViewNotesMediaDateGroup,
-    selectedNoteId: Long,
-    onSelectNote: (Long) -> Unit
-) {
-    AttenoteSectionCard(
-        title = group.date.format(DATE_LABEL_FORMAT)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            group.notes.forEach { note ->
-                val isSelected = note.noteId == selectedNoteId
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelectNote(note.noteId) },
-                    color = if (isSelected) {
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                    },
-                    shape = MaterialTheme.shapes.small,
-                    tonalElevation = 0.dp,
-                    shadowElevation = 0.dp
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = note.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = note.previewText.ifBlank { "No content" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "Updated on ${note.updatedAt.format(METADATA_DATE_FORMAT)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+private fun NoteDetailsSection(note: ViewNotesMediaNoteItem?) {
+    AttenoteSectionCard(title = "Note") {
+        if (note == null) {
+            Text(
+                text = "Selected note is no longer available.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            return@AttenoteSectionCard
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = note.title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = note.previewText.ifBlank { "No content" },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Updated on ${note.updatedAt.format(METADATA_DATE_FORMAT)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
 @Composable
 private fun MediaGallerySection(
-    selectedNote: ViewNotesMediaNoteItem?,
+    note: ViewNotesMediaNoteItem?,
     mediaItems: List<ViewNotesMediaAttachment>,
     onPreviewMedia: (String) -> Unit
 ) {
     AttenoteSectionCard(title = "Attached Media") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (selectedNote == null) {
+            if (note == null) {
                 Text(
-                    text = "Select a note to view attachments.",
+                    text = "No note selected.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 return@Column
             }
-
-            Text(
-                text = "Selected: ${selectedNote.title}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
 
             if (mediaItems.isEmpty()) {
                 Text(
@@ -307,5 +256,4 @@ private fun MediaPreviewDialog(
     }
 }
 
-private val DATE_LABEL_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy")
 private val METADATA_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy")

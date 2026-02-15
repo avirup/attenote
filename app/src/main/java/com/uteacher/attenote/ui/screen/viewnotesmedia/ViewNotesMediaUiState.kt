@@ -5,16 +5,9 @@ import java.time.LocalDate
 data class ViewNotesMediaUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
-    val selectedNoteId: Long = 0L,
-    val groupedNotes: List<ViewNotesMediaDateGroup> = emptyList(),
-    val selectedNote: ViewNotesMediaNoteItem? = null,
+    val viewedNote: ViewNotesMediaNoteItem? = null,
     val mediaItems: List<ViewNotesMediaAttachment> = emptyList(),
     val previewMediaPath: String? = null
-)
-
-data class ViewNotesMediaDateGroup(
-    val date: LocalDate,
-    val notes: List<ViewNotesMediaNoteItem>
 )
 
 data class ViewNotesMediaNoteItem(

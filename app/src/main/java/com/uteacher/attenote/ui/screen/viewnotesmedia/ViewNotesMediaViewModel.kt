@@ -5,12 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.uteacher.attenote.data.repository.NoteRepository
 import com.uteacher.attenote.domain.model.Note
 import java.io.File
-import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -19,24 +17,11 @@ class ViewNotesMediaViewModel(
     private val noteRepository: NoteRepository
 ) : ViewModel() {
 
-    private val selectedNoteId = MutableStateFlow(noteId)
-
-    private val _uiState = MutableStateFlow(
-        ViewNotesMediaUiState(
-            selectedNoteId = noteId
-        )
-    )
+    private val _uiState = MutableStateFlow(ViewNotesMediaUiState())
     val uiState: StateFlow<ViewNotesMediaUiState> = _uiState.asStateFlow()
 
     init {
-        observeNotes()
-    }
-
-    fun onNoteSelected(noteId: Long) {
-        if (noteId <= 0L || noteId == selectedNoteId.value) {
-            return
-        }
-        selectedNoteId.value = noteId
+        observeSelectedNote()
     }
 
     fun onPreviewMediaRequested(path: String) {
@@ -54,7 +39,7 @@ class ViewNotesMediaViewModel(
         _uiState.update { it.copy(error = null) }
     }
 
-    private fun observeNotes() {
+    private fun observeSelectedNote() {
         if (noteId <= 0L) {
             _uiState.update {
                 it.copy(
@@ -67,26 +52,14 @@ class ViewNotesMediaViewModel(
 
         viewModelScope.launch {
             runCatching {
-                combine(
-                    noteRepository.observeAllNotes(),
-                    selectedNoteId
-                ) { notes, selectedId ->
-                    notes to selectedId
-                }.collectLatest { (notes, selectedId) ->
-                    val orderedNotes = notes
-                        .sortedWith(
-                            compareByDescending<Note> { it.date }
-                                .thenByDescending { it.updatedAt }
-                                .thenByDescending { it.noteId }
-                        )
-
-                    if (orderedNotes.isEmpty()) {
+                noteRepository.observeAllNotes().collectLatest { notes ->
+                    val selected = notes.firstOrNull { it.noteId == noteId }
+                    if (selected == null) {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                error = "No notes available to display",
-                                groupedNotes = emptyList(),
-                                selectedNote = null,
+                                error = "Note not found",
+                                viewedNote = null,
                                 mediaItems = emptyList(),
                                 previewMediaPath = null
                             )
@@ -94,12 +67,8 @@ class ViewNotesMediaViewModel(
                         return@collectLatest
                     }
 
-                    val resolvedSelected = orderedNotes
-                        .firstOrNull { it.noteId == selectedId }
-                        ?: orderedNotes.first()
-
-                    val selectedWithMedia = noteRepository.getNoteWithMedia(resolvedSelected.noteId)
-                    val selectedMedia = selectedWithMedia
+                    val selectedWithMedia = noteRepository.getNoteWithMedia(noteId)
+                    val mediaItems = selectedWithMedia
                         ?.second
                         .orEmpty()
                         .map { media ->
@@ -111,17 +80,15 @@ class ViewNotesMediaViewModel(
                         }
 
                     val nextPreviewPath = _uiState.value.previewMediaPath?.takeIf { previewPath ->
-                        selectedMedia.any { media -> media.filePath == previewPath && media.isAvailable }
+                        mediaItems.any { media -> media.filePath == previewPath && media.isAvailable }
                     }
 
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             error = null,
-                            selectedNoteId = resolvedSelected.noteId,
-                            groupedNotes = buildDateGroups(orderedNotes),
-                            selectedNote = resolvedSelected.toUiItem(),
-                            mediaItems = selectedMedia,
+                            viewedNote = selected.toUiItem(),
+                            mediaItems = mediaItems,
                             previewMediaPath = nextPreviewPath
                         )
                     }
@@ -131,31 +98,13 @@ class ViewNotesMediaViewModel(
                     it.copy(
                         isLoading = false,
                         error = "Failed to load notes viewer: ${throwable.message}",
-                        groupedNotes = emptyList(),
-                        selectedNote = null,
+                        viewedNote = null,
                         mediaItems = emptyList(),
                         previewMediaPath = null
                     )
                 }
             }
         }
-    }
-
-    private fun buildDateGroups(notes: List<Note>): List<ViewNotesMediaDateGroup> {
-        val grouped = LinkedHashMap<LocalDate, MutableList<ViewNotesMediaNoteItem>>()
-        notes.forEach { note ->
-            grouped
-                .getOrPut(note.date) { mutableListOf() }
-                .add(note.toUiItem())
-        }
-
-        return grouped
-            .map { (date, groupedNotes) ->
-                ViewNotesMediaDateGroup(
-                    date = date,
-                    notes = groupedNotes
-                )
-            }
     }
 
     private fun Note.toUiItem(): ViewNotesMediaNoteItem {
@@ -179,7 +128,7 @@ class ViewNotesMediaViewModel(
             .map(String::trim)
             .firstOrNull { it.isNotBlank() }
             .orEmpty()
-            .take(120)
+            .take(180)
     }
 
     private companion object {
