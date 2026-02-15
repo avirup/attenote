@@ -5,12 +5,15 @@ import androidx.lifecycle.viewModelScope
 import com.uteacher.attenote.data.repository.AttendanceRepository
 import com.uteacher.attenote.data.repository.ClassRepository
 import com.uteacher.attenote.data.repository.NoteRepository
+import com.uteacher.attenote.data.repository.SettingsPreferencesRepository
 import com.uteacher.attenote.data.repository.StudentRepository
 import com.uteacher.attenote.domain.model.AttendanceRecord
 import com.uteacher.attenote.domain.model.AttendanceSession
+import com.uteacher.attenote.domain.model.AttendanceStatus
 import com.uteacher.attenote.domain.model.Class
 import com.uteacher.attenote.domain.model.Note
 import com.uteacher.attenote.domain.model.Student
+import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,12 +25,16 @@ class DailySummaryViewModel(
     private val noteRepository: NoteRepository,
     private val attendanceRepository: AttendanceRepository,
     private val classRepository: ClassRepository,
-    private val studentRepository: StudentRepository
+    private val studentRepository: StudentRepository,
+    private val settingsRepository: SettingsPreferencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DailySummaryUiState())
     val uiState: StateFlow<DailySummaryUiState> = _uiState.asStateFlow()
-    private var searchIndexedItems: List<SearchIndexedItem> = emptyList()
+
+    private var indexedEntries: List<SearchIndexedSummaryEntry> = emptyList()
+    private var requestedFilter: DailySummaryContentFilter = DailySummaryContentFilter.BOTH
+    private var notesOnlyModeEnabled: Boolean = false
 
     init {
         observeSummary()
@@ -40,33 +47,27 @@ class DailySummaryViewModel(
                     noteRepository.observeAllNotes(),
                     attendanceRepository.observeAllSessions(),
                     classRepository.observeAllClasses(),
-                    studentRepository.observeAllStudents()
-                ) { notes, sessions, classes, students ->
+                    studentRepository.observeAllStudents(),
+                    settingsRepository.notesOnlyModeEnabled
+                ) { notes, sessions, classes, students, isNotesOnlyModeEnabled ->
                     SummarySnapshot(
                         notes = notes,
                         sessions = sessions,
                         classes = classes,
-                        students = students
+                        students = students,
+                        isNotesOnlyModeEnabled = isNotesOnlyModeEnabled
                     )
                 }.collect { snapshot ->
-                    searchIndexedItems = buildSearchIndex(snapshot)
-                    val query = _uiState.value.searchQuery
-                    val filtered = filterAndRank(searchIndexedItems, query)
-
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = null,
-                            items = filtered
-                        )
-                    }
+                    notesOnlyModeEnabled = snapshot.isNotesOnlyModeEnabled
+                    indexedEntries = buildSearchIndex(snapshot)
+                    emitUiState()
                 }
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         error = "Failed to load summary: ${throwable.message}",
-                        items = emptyList()
+                        dateCards = emptyList()
                     )
                 }
             }
@@ -74,78 +75,129 @@ class DailySummaryViewModel(
     }
 
     fun onSearchQueryChanged(value: String) {
-        val query = value.trimStart()
-        _uiState.update { it.copy(searchQuery = query) }
-        val filtered = filterAndRank(searchIndexedItems, query)
-        _uiState.update { it.copy(items = filtered) }
+        _uiState.update { it.copy(searchQuery = value.trimStart()) }
+        emitUiState()
     }
 
-    private suspend fun buildSearchIndex(snapshot: SummarySnapshot): List<SearchIndexedItem> {
+    fun onFilterSelected(filter: DailySummaryContentFilter) {
+        requestedFilter = filter
+        emitUiState()
+    }
+
+    private fun emitUiState() {
+        val currentState = _uiState.value
+        val effectiveFilter = resolveEffectiveFilter()
+        val filteredEntries = filterAndRank(
+            indexedItems = indexedEntries,
+            query = currentState.searchQuery,
+            filter = effectiveFilter
+        )
+
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                error = null,
+                selectedFilter = effectiveFilter,
+                isNotesOnlyModeEnabled = notesOnlyModeEnabled,
+                dateCards = buildDateCards(filteredEntries)
+            )
+        }
+    }
+
+    private suspend fun buildSearchIndex(snapshot: SummarySnapshot): List<SearchIndexedSummaryEntry> {
         val classNameById = snapshot.classes.associate { it.classId to it.className }
         val studentNameById = snapshot.students.associate { it.studentId to it.name }
 
         val attendanceIndexed = snapshot.sessions.map { session ->
             val records = attendanceRepository.getRecordsForSession(session.sessionId)
-            val item = DailySummaryItem.Attendance(
-                date = session.date,
+            val attendance = DailySummaryAttendanceEntry(
                 sessionId = session.sessionId,
                 classId = session.classId,
                 scheduleId = session.scheduleId,
-                className = classNameById[session.classId] ?: "Unknown Class",
-                presentCount = records.count { it.isPresent },
-                absentCount = records.count { !it.isPresent }
+                className = classNameById[session.classId] ?: "Unknown class",
+                isClassTaken = session.isClassTaken,
+                presentCount = records.count { it.status == AttendanceStatus.PRESENT },
+                absentCount = records.count { it.status == AttendanceStatus.ABSENT },
+                skippedCount = records.count { it.status == AttendanceStatus.SKIPPED }
             )
-            SearchIndexedItem(
-                item = item,
-                searchableText = buildAttendanceSearchText(item, session, records, studentNameById),
-                secondarySortId = item.sessionId
+            val entry = DailySummaryListEntry.Attendance(
+                date = session.date,
+                value = attendance
+            )
+            SearchIndexedSummaryEntry(
+                entry = entry,
+                searchableText = buildAttendanceSearchText(
+                    item = attendance,
+                    session = session,
+                    records = records,
+                    studentNameById = studentNameById
+                ),
+                secondarySortId = attendance.sessionId
             )
         }
 
         val notesIndexed = snapshot.notes.map { note ->
-            val item = DailySummaryItem.Note(
-                date = note.date,
+            val noteEntry = DailySummaryNoteEntry(
                 noteId = note.noteId,
                 title = note.title.ifBlank { "Untitled note" },
                 previewLine = buildPreviewLine(note.content)
             )
-            SearchIndexedItem(
-                item = item,
+            val entry = DailySummaryListEntry.Note(
+                date = note.date,
+                value = noteEntry
+            )
+            SearchIndexedSummaryEntry(
+                entry = entry,
                 searchableText = buildNoteSearchText(note),
-                secondarySortId = item.noteId
+                secondarySortId = noteEntry.noteId
             )
         }
 
-        return (attendanceIndexed + notesIndexed)
+        return attendanceIndexed + notesIndexed
     }
 
     private fun filterAndRank(
-        indexedItems: List<SearchIndexedItem>,
-        query: String
-    ): List<DailySummaryItem> {
+        indexedItems: List<SearchIndexedSummaryEntry>,
+        query: String,
+        filter: DailySummaryContentFilter
+    ): List<DailySummaryListEntry> {
+        val contentFiltered = indexedItems.filter { entry ->
+            when (filter) {
+                DailySummaryContentFilter.BOTH -> true
+                DailySummaryContentFilter.NOTES_ONLY -> entry.entry is DailySummaryListEntry.Note
+                DailySummaryContentFilter.ATTENDANCE_ONLY -> {
+                    entry.entry is DailySummaryListEntry.Attendance
+                }
+            }
+        }
+
         if (query.isBlank()) {
-            return indexedItems
+            return contentFiltered
                 .sortedWith(baseSortComparator())
-                .map { it.item }
+                .map { it.entry }
         }
 
         val normalizedQuery = query.lowercase()
         val queryTokens = tokenize(normalizedQuery)
-        return indexedItems
+        return contentFiltered
             .mapNotNull { entry ->
                 val score = scoreBestMatch(normalizedQuery, queryTokens, entry.searchableText)
-                if (score <= 0) null else entry to score
+                if (score <= 0) {
+                    null
+                } else {
+                    entry to score
+                }
             }
             .sortedWith(
-                compareByDescending<Pair<SearchIndexedItem, Int>> { it.second }
-                    .thenByDescending { it.first.item.date }
+                compareByDescending<Pair<SearchIndexedSummaryEntry, Int>> { it.second }
+                    .thenByDescending { it.first.entry.date }
                     .thenByDescending { it.first.secondarySortId }
             )
-            .map { it.first.item }
+            .map { it.first.entry }
     }
 
-    private fun baseSortComparator(): Comparator<SearchIndexedItem> {
-        return compareByDescending<SearchIndexedItem> { it.item.date }
+    private fun baseSortComparator(): Comparator<SearchIndexedSummaryEntry> {
+        return compareByDescending<SearchIndexedSummaryEntry> { it.entry.date }
             .thenByDescending { it.secondarySortId }
     }
 
@@ -171,8 +223,42 @@ class DailySummaryViewModel(
         return score
     }
 
+    private fun buildDateCards(entries: List<DailySummaryListEntry>): List<DailySummaryDateCard> {
+        val grouped = LinkedHashMap<LocalDate, MutableDailySummaryDateCard>()
+
+        entries.forEach { entry ->
+            val dayBucket = grouped.getOrPut(entry.date) {
+                MutableDailySummaryDateCard(
+                    date = entry.date,
+                    attendanceEntries = mutableListOf(),
+                    noteEntries = mutableListOf()
+                )
+            }
+            when (entry) {
+                is DailySummaryListEntry.Attendance -> dayBucket.attendanceEntries += entry.value
+                is DailySummaryListEntry.Note -> dayBucket.noteEntries += entry.value
+            }
+        }
+
+        return grouped.values.map { day ->
+            DailySummaryDateCard(
+                date = day.date,
+                attendanceEntries = day.attendanceEntries,
+                noteEntries = day.noteEntries
+            )
+        }
+    }
+
+    private fun resolveEffectiveFilter(): DailySummaryContentFilter {
+        return if (notesOnlyModeEnabled) {
+            DailySummaryContentFilter.NOTES_ONLY
+        } else {
+            requestedFilter
+        }
+    }
+
     private fun buildAttendanceSearchText(
-        item: DailySummaryItem.Attendance,
+        item: DailySummaryAttendanceEntry,
         session: AttendanceSession,
         records: List<AttendanceRecord>,
         studentNameById: Map<Long, String>
@@ -181,10 +267,14 @@ class DailySummaryViewModel(
             .mapNotNull { studentNameById[it.studentId] }
             .joinToString(" ")
         val lessonNotes = sanitizeText(session.lessonNotes.orEmpty())
+        val sessionStateText = if (item.isClassTaken) "taken" else "not taken"
+
         return listOf(
             item.className,
+            sessionStateText,
             "present ${item.presentCount}",
             "absent ${item.absentCount}",
+            "skipped ${item.skippedCount}",
             lessonNotes,
             studentNames,
             session.date.toString()
@@ -222,8 +312,22 @@ class DailySummaryViewModel(
     }
 }
 
-private data class SearchIndexedItem(
-    val item: DailySummaryItem,
+private sealed interface DailySummaryListEntry {
+    val date: LocalDate
+
+    data class Attendance(
+        override val date: LocalDate,
+        val value: DailySummaryAttendanceEntry
+    ) : DailySummaryListEntry
+
+    data class Note(
+        override val date: LocalDate,
+        val value: DailySummaryNoteEntry
+    ) : DailySummaryListEntry
+}
+
+private data class SearchIndexedSummaryEntry(
+    val entry: DailySummaryListEntry,
     val searchableText: String,
     val secondarySortId: Long
 )
@@ -232,7 +336,14 @@ private data class SummarySnapshot(
     val notes: List<Note>,
     val sessions: List<AttendanceSession>,
     val classes: List<Class>,
-    val students: List<Student>
+    val students: List<Student>,
+    val isNotesOnlyModeEnabled: Boolean
+)
+
+private data class MutableDailySummaryDateCard(
+    val date: LocalDate,
+    val attendanceEntries: MutableList<DailySummaryAttendanceEntry>,
+    val noteEntries: MutableList<DailySummaryNoteEntry>
 )
 
 private fun tokenize(input: String): List<String> {

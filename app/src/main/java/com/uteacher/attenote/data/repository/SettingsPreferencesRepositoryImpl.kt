@@ -26,6 +26,7 @@ class SettingsPreferencesRepositoryImpl(
         val BiometricEnabled = booleanPreferencesKey("biometric_enabled")
         val SessionFormat = stringPreferencesKey("session_format")
         val FabPosition = stringPreferencesKey("fab_position")
+        val NotesOnlyModeEnabled = booleanPreferencesKey("notes_only_mode_enabled")
     }
 
     private val safeData: Flow<Preferences> = dataStore.data.catch { throwable ->
@@ -62,6 +63,11 @@ class SettingsPreferencesRepositoryImpl(
             (preferences[PreferenceKeys.FabPosition] ?: FabPosition.RIGHT.name).toFabPosition()
         }
 
+    override val notesOnlyModeEnabled: Flow<Boolean> =
+        safeData.map { preferences ->
+            preferences[PreferenceKeys.NotesOnlyModeEnabled] ?: false
+        }
+
     override suspend fun setSetupComplete(complete: Boolean) {
         dataStore.edit { it[PreferenceKeys.IsSetupComplete] = complete }
     }
@@ -95,6 +101,10 @@ class SettingsPreferencesRepositoryImpl(
 
     override suspend fun setFabPosition(position: FabPosition) {
         dataStore.edit { it[PreferenceKeys.FabPosition] = position.name }
+    }
+
+    override suspend fun setNotesOnlyModeEnabled(enabled: Boolean) {
+        dataStore.edit { it[PreferenceKeys.NotesOnlyModeEnabled] = enabled }
     }
 
     override suspend fun clearAll() {

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Snackbar
@@ -20,41 +21,38 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun DailySummaryScreen(
-    onEditAttendance: (classId: Long, scheduleId: Long, date: String) -> Unit,
-    onEditNote: (date: String, noteId: Long) -> Unit,
+    onOpenAttendanceStats: (sessionId: Long) -> Unit,
+    onOpenNotesMedia: (noteId: Long) -> Unit,
     viewModel: DailySummaryViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val groupedByDate = remember(uiState.items) { groupByDate(uiState.items) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item(key = "search-bar") {
-                OutlinedTextField(
-                    value = uiState.searchQuery,
-                    onValueChange = viewModel::onSearchQueryChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Search notes and attendance") }
+            item(key = "summary-controls") {
+                SummaryControls(
+                    searchQuery = uiState.searchQuery,
+                    selectedFilter = uiState.selectedFilter,
+                    isNotesOnlyModeEnabled = uiState.isNotesOnlyModeEnabled,
+                    onSearchQueryChanged = viewModel::onSearchQueryChanged,
+                    onFilterSelected = viewModel::onFilterSelected
                 )
             }
 
-            if (!uiState.isLoading && groupedByDate.isEmpty()) {
+            if (!uiState.isLoading && uiState.dateCards.isEmpty()) {
                 item {
                     Text(
                         text = if (uiState.searchQuery.isBlank()) {
@@ -68,37 +66,15 @@ fun DailySummaryScreen(
                 }
             }
 
-            groupedByDate.forEach { (date, entries) ->
-                item(key = "date-$date") {
-                    Text(
-                        text = date.format(SECTION_DATE_FORMAT),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
-                    )
-                }
-
-                items(
-                    items = entries,
-                    key = { item ->
-                        when (item) {
-                            is DailySummaryItem.Attendance -> "attendance-${item.sessionId}"
-                            is DailySummaryItem.Note -> "note-${item.noteId}"
-                        }
-                    }
-                ) { item ->
-                    when (item) {
-                        is DailySummaryItem.Attendance -> AttendanceSummaryItem(
-                            item = item,
-                            onEditAttendance = onEditAttendance
-                        )
-
-                        is DailySummaryItem.Note -> NoteSummaryItem(
-                            item = item,
-                            onEditNote = onEditNote
-                        )
-                    }
-                }
+            items(
+                items = uiState.dateCards,
+                key = { "date-card-${it.date}" }
+            ) { dateCard ->
+                DateSummaryCard(
+                    card = dateCard,
+                    onOpenAttendanceStats = onOpenAttendanceStats,
+                    onOpenNotesMedia = onOpenNotesMedia
+                )
             }
         }
 
@@ -124,14 +100,113 @@ fun DailySummaryScreen(
 }
 
 @Composable
-private fun AttendanceSummaryItem(
-    item: DailySummaryItem.Attendance,
-    onEditAttendance: (classId: Long, scheduleId: Long, date: String) -> Unit
+private fun SummaryControls(
+    searchQuery: String,
+    selectedFilter: DailySummaryContentFilter,
+    isNotesOnlyModeEnabled: Boolean,
+    onSearchQueryChanged: (String) -> Unit,
+    onFilterSelected: (DailySummaryContentFilter) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChanged,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Search notes and attendance") }
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            DailySummaryContentFilter.entries.forEach { option ->
+                FilterChip(
+                    selected = selectedFilter == option,
+                    onClick = { onFilterSelected(option) },
+                    label = { Text(option.label) },
+                    enabled = !isNotesOnlyModeEnabled || option == DailySummaryContentFilter.NOTES_ONLY
+                )
+            }
+        }
+
+        if (isNotesOnlyModeEnabled) {
+            Text(
+                text = "Notes Only Mode is enabled. Attendance entries are hidden.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun DateSummaryCard(
+    card: DailySummaryDateCard,
+    onOpenAttendanceStats: (sessionId: Long) -> Unit,
+    onOpenNotesMedia: (noteId: Long) -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
         shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = card.date.format(SECTION_DATE_FORMAT),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            if (card.attendanceEntries.isNotEmpty()) {
+                Text(
+                    text = "Attendance",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                card.attendanceEntries.forEach { attendance ->
+                    AttendanceEntryRow(
+                        item = attendance,
+                        onOpenAttendanceStats = onOpenAttendanceStats
+                    )
+                }
+            }
+
+            if (card.noteEntries.isNotEmpty()) {
+                Text(
+                    text = "Notes",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                card.noteEntries.forEach { note ->
+                    NoteEntryRow(
+                        item = note,
+                        onOpenNotesMedia = onOpenNotesMedia
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttendanceEntryRow(
+    item: DailySummaryAttendanceEntry,
+    onOpenAttendanceStats: (sessionId: Long) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenAttendanceStats(item.sessionId) },
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+        shape = MaterialTheme.shapes.small,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
@@ -152,35 +227,40 @@ private fun AttendanceSummaryItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
                 Text(
-                    text = "P ${item.presentCount}  A ${item.absentCount}",
+                    text = if (item.isClassTaken) {
+                        "Taken | P ${item.presentCount} | A ${item.absentCount}"
+                    } else {
+                        "Not Taken | Skipped ${item.skippedCount}"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
             Text(
-                text = "Edit",
+                text = "Open",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable {
-                    onEditAttendance(item.classId, item.scheduleId, item.date.toString())
-                }
+                color = MaterialTheme.colorScheme.primary
             )
         }
     }
 }
 
 @Composable
-private fun NoteSummaryItem(
-    item: DailySummaryItem.Note,
-    onEditNote: (date: String, noteId: Long) -> Unit
+private fun NoteEntryRow(
+    item: DailySummaryNoteEntry,
+    onOpenNotesMedia: (noteId: Long) -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenNotesMedia(item.noteId) },
         color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f),
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.small,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
@@ -211,23 +291,12 @@ private fun NoteSummaryItem(
             }
 
             Text(
-                text = "Edit",
+                text = "Open",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable {
-                    onEditNote(item.date.toString(), item.noteId)
-                }
+                color = MaterialTheme.colorScheme.primary
             )
         }
     }
-}
-
-private fun groupByDate(items: List<DailySummaryItem>): List<Pair<LocalDate, List<DailySummaryItem>>> {
-    val grouped = LinkedHashMap<LocalDate, MutableList<DailySummaryItem>>()
-    items.forEach { item ->
-        grouped.getOrPut(item.date) { mutableListOf() }.add(item)
-    }
-    return grouped.map { it.key to it.value }
 }
 
 private val SECTION_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy")

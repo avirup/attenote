@@ -17,5 +17,7 @@ fun AppRoute.actionBarPolicy(): ActionBarPolicy = when (this) {
     AppRoute.ManageStudents -> ActionBarPolicy(title = "Manage Students", showBack = true)
     is AppRoute.TakeAttendance -> ActionBarPolicy(title = "Take Attendance", showBack = true)
     is AppRoute.AddNote -> ActionBarPolicy(title = "Add Note", showBack = true)
+    is AppRoute.ViewNotesMedia -> ActionBarPolicy(title = "Notes & Media", showBack = true)
+    is AppRoute.ViewAttendanceStats -> ActionBarPolicy(title = "Attendance Summary", showBack = true)
     AppRoute.Settings -> ActionBarPolicy(title = "Settings", showBack = true)
 }

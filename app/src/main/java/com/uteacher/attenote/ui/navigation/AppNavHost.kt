@@ -37,6 +37,8 @@ import com.uteacher.attenote.ui.screen.notes.AddNoteScreen
 import com.uteacher.attenote.ui.screen.settings.SettingsScreen
 import com.uteacher.attenote.ui.screen.setup.SetupScreen
 import com.uteacher.attenote.ui.screen.splash.SplashScreen
+import com.uteacher.attenote.ui.screen.viewattendancestats.ViewAttendanceStatsScreen
+import com.uteacher.attenote.ui.screen.viewnotesmedia.ViewNotesMediaScreen
 import com.uteacher.attenote.ui.theme.component.AttenoteSecondaryButton
 
 @Composable
@@ -139,6 +141,9 @@ fun AppNavHost(
                 onNavigateToAddNote = { date, noteId ->
                     navController.navigate(AppRoute.AddNote(date = date, noteId = noteId))
                 },
+                onNavigateToViewNotesMedia = { noteId ->
+                    navController.navigate(AppRoute.ViewNotesMedia(noteId))
+                },
                 onSetActionBarPrimaryAction = onActionBarPrimaryActionChanged
             )
         }
@@ -150,11 +155,11 @@ fun AppNavHost(
                 onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
             )
             DailySummaryScreen(
-                onEditAttendance = { classId, scheduleId, date ->
-                    navController.navigate(AppRoute.TakeAttendance(classId, scheduleId, date))
+                onOpenAttendanceStats = { sessionId ->
+                    navController.navigate(AppRoute.ViewAttendanceStats(sessionId))
                 },
-                onEditNote = { date, noteId ->
-                    navController.navigate(AppRoute.AddNote(date = date, noteId = noteId))
+                onOpenNotesMedia = { noteId ->
+                    navController.navigate(AppRoute.ViewNotesMedia(noteId))
                 }
             )
         }
@@ -256,6 +261,50 @@ fun AppNavHost(
                 noteId = route.noteId,
                 onNavigateBack = { navController.popBackStack() },
                 onSetActionBarPrimaryAction = onActionBarPrimaryActionChanged
+            )
+        }
+
+        composable<AppRoute.ViewNotesMedia> { backStackEntry ->
+            val route = backStackEntry.toTypedRouteOrNull<AppRoute.ViewNotesMedia>()
+            if (route == null) {
+                InvalidRoutePlaceholder(
+                    message = "Invalid notes viewer route parameters.",
+                    onNavigateBack = { navController.popBackStack() }
+                )
+                return@composable
+            }
+            ConfigureActionBar(
+                route = route,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
+            ViewNotesMediaScreen(
+                noteId = route.noteId,
+                onEditSelectedNote = { date, noteId ->
+                    navController.navigate(AppRoute.AddNote(date = date, noteId = noteId))
+                }
+            )
+        }
+
+        composable<AppRoute.ViewAttendanceStats> { backStackEntry ->
+            val route = backStackEntry.toTypedRouteOrNull<AppRoute.ViewAttendanceStats>()
+            if (route == null) {
+                InvalidRoutePlaceholder(
+                    message = "Invalid attendance viewer route parameters.",
+                    onNavigateBack = { navController.popBackStack() }
+                )
+                return@composable
+            }
+            ConfigureActionBar(
+                route = route,
+                onActionBarChanged = onActionBarChanged,
+                onActionBarPrimaryActionChanged = onActionBarPrimaryActionChanged
+            )
+            ViewAttendanceStatsScreen(
+                sessionId = route.sessionId,
+                onEditAttendance = { classId, scheduleId, date ->
+                    navController.navigate(AppRoute.TakeAttendance(classId, scheduleId, date))
+                }
             )
         }
 

@@ -16,6 +16,7 @@ interface SettingsPreferencesRepository {
     val biometricEnabled: Flow<Boolean>
     val sessionFormat: Flow<SessionFormat>
     val fabPosition: Flow<FabPosition>
+    val notesOnlyModeEnabled: Flow<Boolean>
 
     suspend fun setSetupComplete(complete: Boolean)
     suspend fun setName(name: String)
@@ -24,6 +25,7 @@ interface SettingsPreferencesRepository {
     suspend fun setBiometricEnabled(enabled: Boolean)
     suspend fun setSessionFormat(format: SessionFormat)
     suspend fun setFabPosition(position: FabPosition)
+    suspend fun setNotesOnlyModeEnabled(enabled: Boolean)
 
     suspend fun clearAll()
 }

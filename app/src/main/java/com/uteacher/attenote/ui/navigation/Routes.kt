@@ -69,5 +69,19 @@ sealed interface AppRoute {
     }
 
     @Serializable
+    data class ViewNotesMedia(val noteId: Long) : AppRoute {
+        init {
+            require(noteId > 0) { "noteId must be positive" }
+        }
+    }
+
+    @Serializable
+    data class ViewAttendanceStats(val sessionId: Long) : AppRoute {
+        init {
+            require(sessionId > 0) { "sessionId must be positive" }
+        }
+    }
+
+    @Serializable
     data object Settings : AppRoute
 }

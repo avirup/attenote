@@ -62,6 +62,7 @@ fun DashboardScreen(
     onNavigateToDailySummary: () -> Unit,
     onNavigateToTakeAttendance: (classId: Long, scheduleId: Long, date: String) -> Unit,
     onNavigateToAddNote: (date: String, noteId: Long) -> Unit,
+    onNavigateToViewNotesMedia: (noteId: Long) -> Unit,
     onSetActionBarPrimaryAction: (ActionBarPrimaryAction?) -> Unit,
     viewModel: DashboardViewModel = koinViewModel()
 ) {
@@ -202,7 +203,7 @@ fun DashboardScreen(
                                     NoteCard(
                                         note = note,
                                         onOpenNote = {
-                                            onNavigateToAddNote(note.date.toString(), note.noteId)
+                                            onNavigateToViewNotesMedia(note.noteId)
                                         }
                                     )
                                 }

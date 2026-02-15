@@ -12,6 +12,8 @@ import com.uteacher.attenote.ui.screen.managestudents.ManageStudentsViewModel
 import com.uteacher.attenote.ui.screen.settings.SettingsViewModel
 import com.uteacher.attenote.ui.screen.setup.SetupViewModel
 import com.uteacher.attenote.ui.screen.splash.SplashViewModel
+import com.uteacher.attenote.ui.screen.viewattendancestats.ViewAttendanceStatsViewModel
+import com.uteacher.attenote.ui.screen.viewnotesmedia.ViewNotesMediaViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
@@ -57,6 +59,20 @@ val viewModelModule = module {
             backupRepository = get(),
             biometricHelper = get(),
             context = androidContext()
+        )
+    }
+    viewModel { params ->
+        ViewNotesMediaViewModel(
+            noteId = params.get(),
+            noteRepository = get()
+        )
+    }
+    viewModel { params ->
+        ViewAttendanceStatsViewModel(
+            sessionId = params.get(),
+            attendanceRepository = get(),
+            classRepository = get(),
+            studentRepository = get()
         )
     }
 }
