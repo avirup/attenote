@@ -16,6 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.uteacher.attenote.domain.model.ScheduledClassItem
+import com.uteacher.attenote.ui.util.computeDurationMinutes
+import com.uteacher.attenote.ui.util.formatDurationCompact
 import java.time.format.DateTimeFormatter
 
 private val TimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
@@ -26,6 +28,9 @@ fun ScheduledClassCard(
     onTakeAttendance: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val durationMinutes = scheduledClass.durationMinutes.takeIf { it > 0 }
+        ?: computeDurationMinutes(scheduledClass.startTime, scheduledClass.endTime)
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -58,6 +63,13 @@ fun ScheduledClassCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (durationMinutes > 0) {
+                    Text(
+                        text = "Duration: ${formatDurationCompact(durationMinutes)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             Button(

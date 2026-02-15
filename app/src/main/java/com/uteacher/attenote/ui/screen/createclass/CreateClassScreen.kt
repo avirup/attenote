@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -47,6 +48,8 @@ import com.uteacher.attenote.ui.screen.createclass.components.ScheduleSlotCard
 import com.uteacher.attenote.ui.theme.component.AttenoteButton
 import com.uteacher.attenote.ui.theme.component.AttenoteSectionCard
 import com.uteacher.attenote.ui.theme.component.AttenoteTextField
+import com.uteacher.attenote.ui.util.computeDurationMinutes
+import com.uteacher.attenote.ui.util.formatDurationCompact
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -70,6 +73,10 @@ fun CreateClassScreen(
     var dayMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val onSaveClick = remember(viewModel) { { viewModel.onSaveClicked() } }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val draftDurationMinutes = computeDurationMinutes(
+        uiState.currentSlot.startTime,
+        uiState.currentSlot.endTime
+    )
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
@@ -110,7 +117,7 @@ fun CreateClassScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
+            .padding(start = 16.dp, top = 12.dp, end = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Column(
@@ -155,43 +162,56 @@ fun CreateClassScreen(
                         errorMessage = uiState.departmentError
                     )
 
-                    Box {
-                        PickerTextField(
-                            value = if (uiState.semester.isBlank()) "" else uiState.semester,
-                            label = "Semester *",
-                            placeholder = "Select Semester",
-                            enabled = !uiState.isLoading,
-                            errorMessage = uiState.semesterError,
-                            onClick = { semesterMenuExpanded = true },
-                            trailingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = "Select semester"
-                                )
-                            }
-                        )
-                        DropdownMenu(
-                            expanded = semesterMenuExpanded,
-                            onDismissRequest = { semesterMenuExpanded = false }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .widthIn(min = 140.dp)
                         ) {
-                            SemesterOptions.forEach { option ->
-                                DropdownMenuItem(
-                                    text = { Text(option) },
-                                    onClick = {
-                                        viewModel.onSemesterChanged(option)
-                                        semesterMenuExpanded = false
-                                    }
-                                )
+                            PickerTextField(
+                                value = if (uiState.semester.isBlank()) "" else uiState.semester,
+                                label = "Semester *",
+                                placeholder = "Select Semester",
+                                enabled = !uiState.isLoading,
+                                errorMessage = uiState.semesterError,
+                                onClick = { semesterMenuExpanded = true },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.ArrowDropDown,
+                                        contentDescription = "Select semester"
+                                    )
+                                }
+                            )
+                            DropdownMenu(
+                                expanded = semesterMenuExpanded,
+                                onDismissRequest = { semesterMenuExpanded = false }
+                            ) {
+                                SemesterOptions.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option) },
+                                        onClick = {
+                                            viewModel.onSemesterChanged(option)
+                                            semesterMenuExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    AttenoteTextField(
-                        value = uiState.section,
-                        onValueChange = viewModel::onSectionChanged,
-                        label = "Section (optional)",
-                        enabled = !uiState.isLoading
-                    )
+                        AttenoteTextField(
+                            value = uiState.section,
+                            onValueChange = viewModel::onSectionChanged,
+                            label = "Section (optional)",
+                            enabled = !uiState.isLoading,
+                            modifier = Modifier
+                                .weight(1f)
+                                .widthIn(min = 120.dp),
+                            singleLine = true
+                        )
+                    }
 
                     AttenoteTextField(
                         value = uiState.subject,
@@ -319,6 +339,20 @@ fun CreateClassScreen(
                             }
                         )
                     }
+
+                    Text(
+                        text = if (draftDurationMinutes > 0) {
+                            "Duration: ${formatDurationCompact(draftDurationMinutes)}"
+                        } else {
+                            "Duration: Invalid (end time must be after start time)"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (draftDurationMinutes > 0) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        }
+                    )
 
                     if (!uiState.currentSlot.validationError.isNullOrBlank()) {
                         Text(

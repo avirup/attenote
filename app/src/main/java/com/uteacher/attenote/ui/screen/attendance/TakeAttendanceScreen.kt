@@ -33,11 +33,16 @@ import com.uteacher.attenote.ui.screen.attendance.components.AttendanceRecordCar
 import com.uteacher.attenote.ui.theme.component.AttenoteSecondaryButton
 import com.uteacher.attenote.ui.theme.component.AttenoteSectionCard
 import com.uteacher.attenote.ui.theme.component.AttenoteTextField
+import com.uteacher.attenote.ui.util.computeDurationMinutes
+import com.uteacher.attenote.ui.util.formatDurationCompact
+import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+
+private val TimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
 
 @Composable
 fun TakeAttendanceScreen(
@@ -167,11 +172,22 @@ fun TakeAttendanceScreen(
                                         TextStyle.FULL,
                                         Locale.getDefault()
                                     )
+                                    val durationMinutes = schedule.durationMinutes.takeIf { it > 0 }
+                                        ?: computeDurationMinutes(schedule.startTime, schedule.endTime)
                                     Text(
-                                        text = "$dayLabel • ${schedule.startTime} - ${schedule.endTime}",
+                                        text = "$dayLabel • ${
+                                            schedule.startTime.format(TimeFormatter)
+                                        } - ${schedule.endTime.format(TimeFormatter)}",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.primary
                                     )
+                                    if (durationMinutes > 0) {
+                                        Text(
+                                            text = "Duration: ${formatDurationCompact(durationMinutes)}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                                 uiState.date?.let { currentDate ->
                                     Text(

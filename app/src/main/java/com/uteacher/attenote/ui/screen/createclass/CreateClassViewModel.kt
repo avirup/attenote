@@ -8,6 +8,7 @@ import com.uteacher.attenote.data.repository.SettingsPreferencesRepository
 import com.uteacher.attenote.data.repository.internal.RepositoryResult
 import com.uteacher.attenote.domain.model.Class
 import com.uteacher.attenote.domain.model.Schedule
+import com.uteacher.attenote.ui.util.computeDurationMinutes
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -223,12 +224,13 @@ class CreateClassViewModel(
     fun onAddScheduleSlot() {
         val state = _uiState.value
         val slot = state.currentSlot
+        val durationMinutes = computeDurationMinutes(slot.startTime, slot.endTime)
 
-        if (slot.startTime >= slot.endTime) {
+        if (durationMinutes <= 0) {
             _uiState.update {
                 it.copy(
                     currentSlot = slot.copy(
-                        validationError = "End time must be after start time"
+                        validationError = "Class duration must be greater than 0 minutes"
                     )
                 )
             }
@@ -339,7 +341,8 @@ class CreateClassViewModel(
                     classId = 0L,
                     dayOfWeek = slot.dayOfWeek,
                     startTime = slot.startTime,
-                    endTime = slot.endTime
+                    endTime = slot.endTime,
+                    durationMinutes = computeDurationMinutes(slot.startTime, slot.endTime)
                 )
             }
 

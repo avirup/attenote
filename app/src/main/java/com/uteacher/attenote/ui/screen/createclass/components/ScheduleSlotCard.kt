@@ -15,6 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.uteacher.attenote.ui.screen.createclass.ScheduleSlotDraft
+import com.uteacher.attenote.ui.util.computeDurationMinutes
+import com.uteacher.attenote.ui.util.formatDurationCompact
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -28,6 +30,8 @@ fun ScheduleSlotCard(
     enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val durationMinutes = computeDurationMinutes(slot.startTime, slot.endTime)
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -50,6 +54,19 @@ fun ScheduleSlotCard(
                     text = "${slot.startTime.format(TimeFormatter)} - ${slot.endTime.format(TimeFormatter)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = if (durationMinutes > 0) {
+                        "Duration: ${formatDurationCompact(durationMinutes)}"
+                    } else {
+                        "Duration: Invalid"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (durationMinutes > 0) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    }
                 )
             }
 
