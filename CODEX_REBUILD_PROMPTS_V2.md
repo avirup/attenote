@@ -592,8 +592,7 @@ Implement user-facing permanent cascade delete flows for classes/students and th
 
 Implement:
 1. Delete class action
-- Add a visible `Delete Class` button for each class item on the Manage Classes page.
-- Keep delete access in Edit Class context as well (same delete behavior/confirmation).
+- Add a visible `Delete Class` button in the topbar for each class in the Edit Class page.
 - Confirmation dialog must be destructive-styled and clearly warn:
   "This will permanently delete the class and ALL associated data including schedules, attendance records, and notes. This action cannot be undone."
 - On confirm, call `deleteClassPermanently(classId)` and navigate back on success.
@@ -649,7 +648,7 @@ Implement:
 - No orphaned attendance sessions, records, or notes should remain.
 
 Done criteria:
-- Manage Classes page shows `Delete Class` button on class items.
+- Edit Class page shows `Delete Class` button in topbar.
 - Class delete action exists and permanently removes class + all associated data.
 - Edit Student dialog no longer shows "mark student as active"; it shows delete action instead.
 - Manage Students screen still supports separate "Mark Inactive/Mark Active" action for students.
@@ -663,7 +662,7 @@ Done criteria:
 - UI reflects deletions immediately across all screens.
 
 Manual verification checklist:
-- [ ] Manage Classes page shows `Delete Class` button for class items.
+- [ ] Edit Class page shows `Delete Class` button in topbar.
 - [ ] Delete class shows destructive confirmation with cascade warning.
 - [ ] Confirming class delete removes class, schedules, attendance, and notes from DB.
 - [ ] Edit Student dialog no longer contains "mark student as active" toggle.
@@ -699,78 +698,92 @@ Output format:
 ### Git Commit Message (V2 Step 08)
 `feat(v2-step-08): add class delete button, student merge-on-conflict, and enhanced manage-students/csv rules`
 
-## Prompt 09 - Daily Summary Grouped by Day + Two Read-Only Viewer Screens
+## Prompt 09 - Daily Summary Date Cards + Read-Only Viewer Navigation
 ```text
-Implement the V2 summary and read-only analytics viewing improvements.
+Implement the V2 Daily Summary listing and read-only viewer navigation behavior updates.
 
 Implement:
-1. Daily Summary grouping by day
-- Refactor Daily Summary to group items by date (day sections).
-- Each day group must include:
-  - notes count
-  - attendance sessions count
-  - classes taken count
-  - classes skipped count
-  - present/absent/skipped totals
-- Keep newest day first.
+1. Daily Summary date-card grouping
+- Refactor Daily Summary to render date cards (newest day first).
+- Each date card must contain:
+  - Attendance entries (classes taken/not taken for that date)
+  - Notes entries for that date
+- Do not show totals/count aggregations on Daily Summary cards.
 
-2. Daily group UI behavior
-- Add clear day headers (sticky headers if practical).
-- Keep edit shortcuts from summary items.
-- Add optional search/filter that operates across grouped items.
+2. Daily Summary content filter
+- Add a top-level filter with three options:
+  - `Both`
+  - `Notes only`
+  - `Attendance only`
+- Persist or retain selection as already used by existing screen state patterns.
+- Respect global Notes Only Mode:
+  - When Notes Only Mode is enabled, hide attendance entries and enforce notes-only listing behavior.
 
-3. New read-only screen A: Notes + Media viewer
+3. Read-only screen A: Notes + Media viewer
 - Create typed route: `AppRoute.ViewNotesMedia`.
-- Screen purpose: view notes and attached media only (read-only; no edit/delete actions).
+- Screen purpose: view notes and attached media in read-only mode.
 - Include:
   - Date-grouped note list
   - Each note card with title, preview text, and `Updated on` metadata only
   - Attached media gallery (tap to preview image in read-only full-screen dialog/sheet)
+- Add an explicit action button to navigate to the note edit flow for the selected note.
 
-4. New read-only screen B: Attendance stats + lesson note viewer
+4. Read-only screen B: Attendance summary viewer
 - Create typed route: `AppRoute.ViewAttendanceStats`.
-- Screen purpose: view attendance statistics and lesson notes only (read-only; no attendance edit actions).
+- Screen purpose: view attendance summary details in read-only mode.
 - Include:
-  - Day-level and class-level attendance totals
-  - Present/Absent/Skipped counts and percentages
-  - Session-level lesson note preview and full-note view
-  - Class taken vs skipped session counts
+  - Session/class attendance detail presentation for the selected entry
+  - Linked lesson note preview/read view where applicable
+- Add an explicit action button to navigate to the attendance edit/take-attendance flow for that session/class.
 
 5. Navigation wiring
-- Add entry points to both screens from Daily Summary and/or Dashboard action area.
+- Daily Summary note entries navigate to `AppRoute.ViewNotesMedia`.
+- Daily Summary attendance entries navigate to `AppRoute.ViewAttendanceStats`.
+- Dashboard note card `Open` action must navigate to `AppRoute.ViewNotesMedia`.
+- Keep Dashboard `Take Attendance` navigation unchanged.
 - Keep ActionBar title/back behavior consistent.
 
 6. Data/ViewModel support
-- Build UI models for grouped day summary, notes-media viewer, and attendance-stats viewer.
-- Ensure skipped records are included in stats and clearly labeled.
+- Build UI models for grouped date-card summary, notes-media viewer, and attendance summary viewer.
+- Ensure attendance entries still represent taken/not-taken state clearly.
 - Ensure note media loading handles missing files gracefully in read-only mode.
 
 Done criteria:
-- Daily Summary is grouped by day and includes day-level totals.
-- New `ViewNotesMedia` screen exists and shows notes with media in read-only mode.
-- New `ViewAttendanceStats` screen exists and shows attendance stats + lesson notes in read-only mode.
+- Daily Summary is grouped into date cards and shows no totals.
+- Daily Summary filter supports `Both`, `Notes only`, and `Attendance only`.
+- Global Notes Only Mode forces notes-only behavior in Daily Summary.
+- New `ViewNotesMedia` screen exists and shows notes with media in read-only mode plus a button to edit note.
+- New `ViewAttendanceStats` screen exists and shows attendance summary details in read-only mode plus a button to edit attendance.
 - Notes viewer cards show only `Updated on` metadata (no `Created on`).
-- Navigation to/from both screens is stable.
+- Navigation from Daily Summary and Dashboard `Open` to the correct read-only screens is stable.
 
 Manual verification checklist:
-- [ ] Daily Summary renders date groups with correct totals.
+- [ ] Daily Summary renders date cards in newest-first order with attendance and notes grouped by day.
+- [ ] Daily Summary date cards do not show totals/count aggregations.
+- [ ] Filter toggles correctly between `Both`, `Notes only`, and `Attendance only`.
+- [ ] With Notes Only Mode enabled, Daily Summary enforces notes-only listing and hides attendance entries.
 - [ ] Group ordering is newest day first.
+- [ ] Tapping a note entry in Daily Summary opens `ViewNotesMedia`.
+- [ ] Tapping an attendance entry in Daily Summary opens `ViewAttendanceStats`.
+- [ ] Dashboard note card `Open` navigates to `ViewNotesMedia`.
+- [ ] Dashboard `Take Attendance` navigation behavior remains unchanged.
 - [ ] `ViewNotesMedia` loads notes and attached media in read-only mode.
 - [ ] `ViewNotesMedia` note cards show only `Updated on` metadata.
-- [ ] `ViewAttendanceStats` loads attendance statistics and lesson notes in read-only mode.
-- [ ] Skipped attendance counts appear correctly.
+- [ ] `ViewNotesMedia` provides a working button to navigate to edit note.
+- [ ] `ViewAttendanceStats` loads attendance summary details in read-only mode.
+- [ ] `ViewAttendanceStats` provides a working button to navigate to edit attendance.
 - [ ] Back navigation returns to source screen correctly from both viewer screens.
 
 Output format:
 1. Changed files.
-2. Grouping/stat aggregation logic summary.
+2. Grouping/filter/navigation logic summary.
 3. Device gate command results.
 4. Manual checklist with pass/fail.
 5. Step handoff.
 ```
 
 ### Git Commit Message (V2 Step 09)
-`feat(v2-step-09): group daily summary by day and add read-only notes-media and attendance-stats viewers`
+`feat(v2-step-09): add date-card summary filters and read-only viewer navigation with edit shortcuts`
 
 ## Prompt 10 - Notes Only Mode (Settings Toggle + UI Gating)
 ```text
